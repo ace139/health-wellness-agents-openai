@@ -5,7 +5,7 @@ import logging
 from typing import TYPE_CHECKING
 
 # Third-party imports
-from agents import Agent, AgentOutput, Runner  # Alphabetized and on separate lines
+from agents import Agent, Runner, agent_output  # Alphabetized and on separate lines
 
 # Local application imports
 from tools.conversation import log_conversation
@@ -77,7 +77,7 @@ async def handle_planner_response(
     user_input: str,
     session: "HealthAssistantSession",
     planner_agent: Agent,  # Renamed parameter for clarity
-) -> AgentOutput:
+) -> agent_output:
     """Handle the user input using the Planner agent and return AgentOutput.
 
     Args:
@@ -138,7 +138,7 @@ async def handle_planner_response(
         )
         session.log_conversation(role="assistant", message=error_response_content)
 
-        return AgentOutput(
+        return agent_output(
             final_output=error_response_content,
             tool_calls=[],
             tool_outputs=[],

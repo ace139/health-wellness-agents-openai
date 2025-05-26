@@ -5,7 +5,7 @@ import logging
 from typing import TYPE_CHECKING
 
 # Third-party imports
-from agents import Agent, AgentOutput, Runner
+from agents import Agent, Runner, agent_output
 
 # Local application imports
 from tools.conversation import log_conversation
@@ -57,7 +57,7 @@ async def handle_affirmation_response(
     user_input: str,
     session: "HealthAssistantSession",
     affirmation_agent: Agent,
-) -> AgentOutput:
+) -> agent_output:
     """Handle user input using the Affirmation agent and return the agent's output."""
     session.log_conversation(role="user", message=user_input)
 
@@ -102,7 +102,7 @@ async def handle_affirmation_response(
         )
         session.log_conversation(role="assistant", message=error_response_content)
 
-        return AgentOutput(
+        return agent_output(
             final_output=error_response_content,
             tool_calls=[],
             tool_outputs=[],

@@ -145,13 +145,8 @@ Important considerations:
         return Agent(
             name="Router",
             instructions=self.ROUTER_INSTRUCTIONS,
-            context_variables=[
-                "routing_context_current_agent",
-                "routing_context_current_state_summary",
-                "routing_context_flow_stack_summary",
-                "routing_context_has_pending_flow",
-                "routing_context_interaction_count",
-            ],
+            # model="gpt-4-turbo-preview", # Cheaper and often sufficient
+            model="gpt-4o",  # Use the latest model
         )
 
     def parse_router_response(self, response: str) -> Dict[str, Any]:

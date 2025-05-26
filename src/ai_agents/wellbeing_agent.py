@@ -5,7 +5,7 @@ import logging
 from typing import TYPE_CHECKING
 
 # Third-party imports
-from agents import Agent, AgentOutput, Runner  # Alphabetized and on separate lines
+from agents import Agent, Runner, agent_output  # Alphabetized and on separate lines
 
 if TYPE_CHECKING:
     from ai_agents.session import HealthAssistantSession
@@ -56,7 +56,7 @@ def create_wellbeing_agent() -> Agent:
 
 async def handle_wellbeing_response(
     user_input: str, session: "HealthAssistantSession", wellbeing_agent: Agent
-) -> AgentOutput:
+) -> agent_output:
     """Handle the user input using the WellBeing agent and return AgentOutput.
 
     Args:
@@ -107,7 +107,7 @@ async def handle_wellbeing_response(
         )
         session.log_conversation(role="assistant", message=error_response_content)
 
-        return AgentOutput(
+        return agent_output(
             final_output=error_response_content,
             tool_calls=[],
             tool_outputs=[],

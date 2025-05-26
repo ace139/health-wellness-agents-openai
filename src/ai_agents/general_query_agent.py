@@ -5,7 +5,7 @@ import logging
 from typing import TYPE_CHECKING
 
 # Third-party imports
-from agents import Agent, AgentOutput, Runner
+from agents import Agent, Runner, agent_output
 
 # Local application imports
 from tools.conversation import log_conversation
@@ -61,7 +61,7 @@ Log all interactions for quality assurance."""
 
 async def handle_general_query_response(
     user_input: str, session: "HealthAssistantSession", general_query_agent: Agent
-) -> AgentOutput:
+) -> agent_output:
     """Handle user input with General Query agent & return AgentOutput.
 
     Args:
@@ -114,7 +114,7 @@ async def handle_general_query_response(
         )
         session.log_conversation(role="assistant", message=error_response_content)
 
-        return AgentOutput(
+        return agent_output(
             final_output=error_response_content,
             tool_calls=[],
             tool_outputs=[],

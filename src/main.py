@@ -6,7 +6,7 @@ import logging
 from typing import Any, Dict, Optional, Tuple
 
 # Third-party imports
-from agents import Agent
+from agents import Agent, RunResult
 
 # Local application imports
 from ai_agents import (
@@ -111,14 +111,38 @@ class HealthAssistant:
             self.current_agent_name = agent_name
 
             # Run the agent handler
-            response, should_continue = await handler(
+            run_result: RunResult = await handler(
                 user_input=user_input,
                 session=self.session,
                 agent=agent,
-                context=context or {},
             )
 
-            return response, should_continue
+            if not isinstance(run_result, RunResult):
+                logger.error(
+                    f"Handler for {agent_name} returned unexpected type: %s",
+                    type(run_result),
+                )
+                return (
+                    "I'm sorry, internal error (handler return type).",
+                    False,  # Critical error, stop session processing
+                )
+
+            if run_result.final_output is None:
+                logger.error(
+                    f"Handler for {agent_name} returned RunResult with "
+                    "final_output=None."
+                )
+                # Handler should populate final_output; this implies an error.
+                return (
+                    "I'm sorry, an internal error occurred (no final output).",
+                    True,  # Allow user to try again
+                )
+
+            response_text = str(run_result.final_output)
+            # If handler executed and produced output, the session loop should continue.
+            should_continue_session = True
+
+            return response_text, should_continue_session
 
         except KeyError:
             error_msg = (

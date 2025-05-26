@@ -5,9 +5,8 @@ import logging
 from typing import TYPE_CHECKING
 
 # Third-party imports
-from agents import Agent, AgentOutput, Runner
+from agents import Agent, Runner, agent_output
 
-# Local application imports
 from tools.conversation import log_conversation
 from tools.health import get_cgm_statistics, log_cgm_reading
 
@@ -62,7 +61,7 @@ async def handle_health_monitor_response(
     user_input: str,
     session: "HealthAssistantSession",
     health_monitor_agent: Agent, # Renamed parameter
-) -> AgentOutput:
+) -> agent_output:
     """Handle the user input using the Health Monitor agent and return AgentOutput.
 
     Args:
@@ -124,7 +123,7 @@ async def handle_health_monitor_response(
         )
         session.log_conversation(role="assistant", message=error_response_content)
 
-        return AgentOutput(
+        return agent_output(
             final_output=error_response_content,
             tool_calls=[],
             tool_outputs=[],

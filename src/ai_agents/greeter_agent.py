@@ -4,7 +4,7 @@
 from typing import TYPE_CHECKING
 
 # Third-party imports
-from agents import Agent, AgentOutput, Runner  # Alphabetized
+from agents import Agent, Runner, agent_output  # Alphabetized
 
 # Local application imports
 from tools.conversation import log_conversation
@@ -46,7 +46,7 @@ def create_greeter_agent() -> Agent:
 
 async def handle_greeter_response(
     user_input: str, session: "HealthAssistantSession", agent: Agent
-) -> AgentOutput:
+) -> agent_output:
     """Handle the user input using the Greeter agent and return the agent's output.
 
     Args:
@@ -63,7 +63,7 @@ async def handle_greeter_response(
             session.log_conversation(role="user", message=user_input)
 
         # Get the agent's response using Runner
-        run_result: AgentOutput = await Runner.run(
+        run_result: agent_output = await Runner.run(
             starting_agent=agent, input=user_input, context=session
         )
 
@@ -112,9 +112,9 @@ async def handle_greeter_response(
         
         # Construct a valid AgentOutput for error case
         # This is a simplified error representation. A more robust solution
-        # might involve creating an AgentOutput with error details.
+        # might involve creating an agent_output with error details.
         # For now, we'll mimic a simple string output within AgentOutput.
-        return AgentOutput(
+        return agent_output(
             final_output=error_response_content,
             tool_calls=[],
             tool_outputs=[],
