@@ -25,15 +25,15 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+
 # ANSI escape codes for colors
 class Colors:
-    BLUE = '\033[94m'
-    GREEN = '\033[92m'
-    YELLOW = '\033[93m'
-    RED = '\033[91m'
-    ENDC = '\033[0m' # Resets the color
-    BOLD = '\033[1m'
-
+    BLUE = "\033[94m"
+    GREEN = "\033[92m"
+    YELLOW = "\033[93m"
+    RED = "\033[91m"
+    ENDC = "\033[0m"  # Resets the color
+    BOLD = "\033[1m"
 
 
 class HealthAssistant:
@@ -143,12 +143,15 @@ class HealthAssistant:
             return "Please start a session first."
 
         try:
-            # Use the router to determine the next agent
-            next_agent, confidence, reason = await self.router.determine_next_agent(
+            # Use router to determine next agent
+            router_response = await self.router.determine_next_agent(
                 user_input=user_input,
-                current_agent_name=self.current_agent_name,
                 session=self.session,
             )
+
+            next_agent = router_response.get("target_agent", "FallbackAgent") 
+            confidence = router_response.get("confidence", 0.0)
+            reason = router_response.get("reason", "No reason provided")
 
             logger.info(
                 f"Routing to {next_agent} (confidence: {confidence:.2f}): {reason}"
@@ -173,7 +176,7 @@ class HealthAssistant:
         except asyncio.CancelledError:
             logger.info("Input processing was cancelled.")
             # Log cancellation; run_cli handles KeyboardInterrupt for shutdown.
-            return "Your request was cancelled." # This message precedes "Goodbye!"
+            return "Your request was cancelled."  # This message precedes "Goodbye!"
 
     async def close(self):
         """Clean up resources, including the session and database connection."""
@@ -192,6 +195,7 @@ class HealthAssistant:
             logger.error(f"Error during cleanup: {e}", exc_info=True)
         finally:
             logger.info("Health Assistant cleanup finished.")
+
 
 async def run_cli():
     """Run the health assistant in CLI mode."""
