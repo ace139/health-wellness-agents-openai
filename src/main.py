@@ -95,7 +95,7 @@ class HealthAssistant:
         Args:
             agent_name: Name of the agent to run
             user_input: User input to process
-            context: Additional context for the agent
+            # Log cancellation; run_cli handles KeyboardInterrupt.
 
         Returns:
             Tuple of (response_text, should_continue)
@@ -140,33 +140,64 @@ class HealthAssistant:
             The agent's response text
         """
         if not self.session:
+            logger.warning("process_input called without an active session.")
             return "Please start a session first."
 
         try:
-            # Use router to determine next agent
-            router_response = await self.router.determine_next_agent(
+            # 1. Get routing decision from RouterAgent
+            router_decision = await self.router.determine_next_agent(
                 user_input=user_input,
-                session=self.session,
+                session=self.session, # RouterAgent uses this to prepare context
             )
-
-            next_agent = router_response.get("target_agent", "FallbackAgent") 
-            confidence = router_response.get("confidence", 0.0)
-            reason = router_response.get("reason", "No reason provided")
 
             logger.info(
-                f"Routing to {next_agent} (confidence: {confidence:.2f}): {reason}"
+                f"Router proposed: {router_decision.get('target_agent')} "
+                f"(Intent: {router_decision.get('intent')}, "
+                f"Confidence: {router_decision.get('confidence', 0.0):.2f}, "
+                f"Interruption: {router_decision.get('is_interruption', False)}, "
+                f"Resume: {router_decision.get('should_resume_after', False)}) - "
+                f"Reason: {router_decision.get('reason', 'N/A')}"
             )
 
-            # Run the selected agent
+            # 2. Let the session handle the routing decision and manage flow stack
+            # Returns: agent to run, input for agent, and is_resumed_flow flag.
+            # (HealthAssistantSession.handle_routing_decision will be updated next)
+            agent_to_run, input_for_agent, is_resumed_flow = \
+                await self.session.handle_routing_decision(
+                    router_decision=router_decision,
+                    original_user_input=user_input
+                )
+
+            logger.info(
+                f"Session decided: Run '{agent_to_run}' (Resumed: {is_resumed_flow}) "
+                f"with input: '{input_for_agent[:50]}...'"
+            )
+
+            # 3. Prepare context for the agent run
+            agent_run_context = {
+                "routing_decision": router_decision, # Full router output for agent
+                "is_resumed_flow": is_resumed_flow,
+            }
+
+            # 4. Run the selected agent
             response, should_continue = await self.run_agent(
-                next_agent,
-                user_input,
-                {"routing_reason": reason, "routing_confidence": confidence},
+                agent_name=agent_to_run,
+                user_input=input_for_agent,
+                context=agent_run_context,
             )
 
-            # If the agent indicates we should continue, stay with it
+            # 5. Update current agent if the agent indicates continuation
+            # The session's current_agent_name is updated by prepare_for_routing
+            # and potentially by handle_routing_decision when resuming.
+            # This self.current_agent_name is for the main loop's tracking.
             if should_continue:
-                self.current_agent_name = next_agent
+                self.current_agent_name = agent_to_run
+            elif is_resumed_flow:
+                # If a resumed flow just finished (should_continue=False),
+                # and a flow is pending, router guides to resume it.
+                # If no flow pending, router guides to new flow (e.g. Greeter).
+                # For now, just log. The next router call will handle it.
+                logger.info(f"Resumed flow '{agent_to_run}' finished.")
 
             return response
 
@@ -175,7 +206,6 @@ class HealthAssistant:
             return "I'm sorry, I encountered an error processing your request."
         except asyncio.CancelledError:
             logger.info("Input processing was cancelled.")
-            # Log cancellation; run_cli handles KeyboardInterrupt for shutdown.
             return "Your request was cancelled."  # This message precedes "Goodbye!"
 
     async def close(self):

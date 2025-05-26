@@ -3,13 +3,12 @@
 # Standard library imports
 import json
 import logging
-from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Dict, Optional
 
 # Third-party imports
 from agents import Agent, Runner
 
 # Local application imports
-from ai_agents.flow_manager import ConversationFlowManager  # For type hinting
 from ai_agents.session import HealthAssistantSession
 from tools.conversation import log_conversation
 
@@ -17,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     # Local application imports
-    from ai_agents.flow_manager import ConversationFlowManager  # For type hinting
+    pass  # For type hinting
 
 
 class RouterAgent:
@@ -40,12 +39,14 @@ class RouterAgent:
     Your primary goal is to analyze the user's input and the current 
     conversational context to determine the correct course of action.
 
-Available context variables (automatically injected into this prompt):
+Available context variables (injected if present on session object for Runner.run):
 - {{routing_context_current_agent}}: Name of the last/current active agent.
 - {{routing_context_current_state_summary}}: Summary of current task/state 
   (e.g., "Task: awaiting_cgm_reading", "General conversation").
 - {{routing_context_flow_stack_summary}}: Indicates pending flows on stack 
   (e.g., "Pending flows: Yes (1 item)", "No pending flows").
+- {{routing_context_has_pending_flow}}: Boolean indicating if there's a pending flow.
+- {{routing_context_interaction_count}}: Current interaction count in the session.
 
 Your tasks:
 1.  Classify the user's input. Intents can be:
@@ -135,37 +136,6 @@ Important considerations:
 - Be cautious with 'inappropriate' classification.
 """
 
-    def _summarize_state_for_prompt(self, state_dict: Optional[Dict[str, Any]]) -> str:
-        if not state_dict:
-            return "No specific conversation state active."
-
-        parts = []
-        if current_task := state_dict.get("current_task"):
-            parts.append(f"Current task: {current_task}.")
-        if awaiting_input := state_dict.get("awaiting_input"):
-            parts.append(f"Awaiting specific input: {awaiting_input}.")
-        if collected_data_keys := list(state_dict.get("collected_data", {}).keys()):
-            parts.append(f"Data collected so far: {collected_data_keys}.")
-
-        if not parts:
-            return "General conversation state, no specific task identified."
-        return " ".join(parts)
-
-    def _summarize_flow_stack_for_prompt(
-        self, flow_manager: Optional["ConversationFlowManager"]
-    ) -> str:
-        if not flow_manager or not flow_manager.has_pending_flow():
-            return "No pending flows."
-
-        stack_size = len(flow_manager.flow_stack)
-        if stack_size > 0 and flow_manager.flow_stack[-1]:
-            last_flow_agent_name = flow_manager.flow_stack[-1][0]
-            return (
-                f"Pending flows: Yes ({stack_size} item(s) on stack. "
-                f"Last interrupted agent: {last_flow_agent_name})"
-            )
-        return f"Pending flows: Yes ({stack_size} item(s) on stack)"
-
     def _create_router_agent(self) -> Agent:
         """Create and configure the Router agent.
 
@@ -179,6 +149,8 @@ Important considerations:
                 "routing_context_current_agent",
                 "routing_context_current_state_summary",
                 "routing_context_flow_stack_summary",
+                "routing_context_has_pending_flow",
+                "routing_context_interaction_count",
             ],
         )
 
@@ -229,114 +201,58 @@ Important considerations:
                 "intent": "error_parsing_router_response",
                 "is_interruption": False,
                 "should_resume_after": False,
-                "target_agent": "GreeterAgent",
+                "target_agent": "GreeterAgent",  # Default to a safe agent
                 "confidence": 0.1,
                 "reason": f"Critical error parsing router JSON response: {e!s}",
             }
-
-    def _prepare_session_for_routing(
-        self, session: "HealthAssistantSession", context_dict: Optional[Dict[str, Any]]
-    ) -> Tuple[Dict[str, Any], str]:
-        """Prepares session for routing, returns original values & log agent name."""
-        if context_dict is None:
-            context_dict = {}
-
-        current_agent_name_for_prompt = context_dict.get("current_agent_name", "None")
-        current_state_for_prompt = self._summarize_state_for_prompt(
-            context_dict.get("current_state")
-        )
-        flow_stack_summary_for_prompt = self._summarize_flow_stack_for_prompt(
-            getattr(session, "flow_manager", None)
-        )
-
-        original_context_values: Dict[str, Any] = {}
-        context_attributes_to_set = {
-            "routing_context_current_agent": current_agent_name_for_prompt,
-            "routing_context_current_state_summary": current_state_for_prompt,
-            "routing_context_flow_stack_summary": flow_stack_summary_for_prompt,
-        }
-
-        for key, value in context_attributes_to_set.items():
-            if hasattr(session, key):
-                original_context_values[key] = getattr(session, key)
-            setattr(session, key, value)
-
-        agent_name_for_log = (
-            current_agent_name_for_prompt
-            if current_agent_name_for_prompt != "None"
-            else "UserDirectInput"
-        )
-        return original_context_values, agent_name_for_log
 
     async def determine_next_agent(
         self,
         user_input: str,
         session: "HealthAssistantSession",
-        context_dict: Optional[Dict[str, Any]] = None,
+        context_dict: Optional[Dict[str, Any]] = None,  # Retained for flexibility
     ) -> Dict[str, Any]:
         """Determine next agent & action based on user input and conversation context.
 
         Args:
             user_input: User's input text.
             session: Current HealthAssistantSession instance.
-            context_dict: Optional dict with 'current_agent_name', 'current_state',
-                          'has_pending_flow'.
+            context_dict: Additional context (e.g., from main loop) that might not be
+                          part of standard session attributes. This can be used by
+                          session.prepare_for_routing if needed.
 
         Returns:
-            A dictionary with the routing decision from parse_router_response.
+            A dictionary containing the routing decision.
         """
-        original_context_values: Dict[str, Any] = {}
-        agent_name_for_log = (
-            "UserDirectInput"  # Default, updated by _prepare_session_for_routing
-        )
-
         try:
-            (
-                original_context_values,
-                agent_name_for_log,
-            ) = self._prepare_session_for_routing(session, context_dict)
+            # 1. Prepare session attributes for the router's context variables
+            # session.prepare_for_routing() will use context_dict if it's relevant
+            session.prepare_for_routing(context_dict=context_dict)
 
-            # User Input Logging (To be extracted into a helper method later)
-            if (
-                hasattr(session, "user_id")
-                and session.user_id
-                and hasattr(session, "db")
-                and "log_conversation" in globals()
-            ):
-                try:
-                    log_conversation(
-                        db=session.db,
-                        user_id=session.user_id,
-                        session_id=session.session_id,
-                        role="user",
-                        message=user_input,
-                        agent_name=agent_name_for_log,
-                    )
-                except Exception as log_e:
-                    logger.error(f"Failed to log user input for router: {log_e}")
+            # 2. Log user input
+            # Use routing_context_current_agent (reflects context for this route)
+            agent_name_for_log = session.routing_context_current_agent or "RouterCaller"
+            self._log_user_input(session, user_input, agent_name_for_log)
 
-            # Main Agent Execution Block (To be further refactored)
-            current_agent_ctx = getattr(session, "routing_context_current_agent", "N/A")
-            current_state_ctx = getattr(
-                session, "routing_context_current_state_summary", "N/A"
-            )
-            flow_stack_ctx = getattr(
-                session, "routing_context_flow_stack_summary", "N/A"
-            )
+            # 3. Log invocation details using the prepared session attributes
             self._log_router_invocation_details(
-                user_input, current_agent_ctx, current_state_ctx, flow_stack_ctx
+                user_input,
+                session.routing_context_current_agent or "None",
+                session.routing_context_current_state_summary or "N/A",
+                session.routing_context_flow_stack_summary or "N/A",
             )
 
-            response_content = await self._execute_router_llm_run(
-                self._router_agent, user_input, session.session_id
+            # 4. Execute the router agent
+            router_response_str = await self._execute_router_llm_run(
+                router_agent=self.agent,  # From self._create_router_agent()
+                session=session,
+                user_input_for_prompt=user_input,
             )
 
-            if not response_content: 
-                return self.parse_router_response(response_content) 
+            # 5. Parse the response
+            parsed_result = self.parse_router_response(router_response_str)
 
-            parsed_result = self.parse_router_response(response_content)
-            logger.info(f"Router parsed decision: {parsed_result}")
-
+            # 6. Log the router's decision
             self._log_router_decision(session, parsed_result)
 
             return parsed_result
@@ -346,29 +262,15 @@ Important considerations:
                 f"Critical error in RouterAgent.determine_next_agent: {e}",
                 exc_info=True,
             )
-            error_payload = {
+            # Fallback response in case of any unhandled error in the process
+            return {
                 "intent": "error_determine_next_agent_exception",
-                "reason": f"Unhandled exception: {e!s}",
-                "target_agent": "FallbackAgent",
-                "confidence": 0.0,
                 "is_interruption": False,
                 "should_resume_after": False,
+                "target_agent": "FallbackAgent",  # A safe default
+                "confidence": 0.0,
+                "reason": f"Unhandled exception in determine_next_agent: {e!s}",
             }
-            return self.parse_router_response(json.dumps(error_payload))
-        finally:
-            for key, value in original_context_values.items():
-                setattr(session, key, value)
-            attrs_to_clean = [
-                "routing_context_current_agent",
-                "routing_context_current_state_summary",
-                "routing_context_flow_stack_summary",
-            ]
-            for attr in attrs_to_clean:
-                if hasattr(session, attr):
-                    try:
-                        delattr(session, attr)
-                    except AttributeError:
-                        logger.warning(f"Could not delattr {attr} in cleanup.")
 
     def _log_user_input(
         self,
@@ -409,12 +311,30 @@ Important considerations:
         )
 
     async def _execute_router_llm_run(
-        self, router_agent: Agent, prompt: str, session_id: str
+        self,
+        router_agent: Agent,
+        session: "HealthAssistantSession",
+        user_input_for_prompt: str,
     ) -> str:
         """Executes the router agent and returns its string output or an error JSON."""
+        # The prompt for the LLM is now primarily the user_input, as other necessary
+        # context (current_agent, state_summary, flow_stack_summary) is expected
+        # to be accessed by the LLM from the session object's attributes directly,
+        # as defined in ROUTER_INSTRUCTIONS (e.g., {{routing_context_current_agent}}).
+        # The Runner.run call will make these session attributes available.
+
+        # We pass user_input_for_prompt as the 'input' to Runner.run.
+        # The ROUTER_INSTRUCTIONS should guide the LLM on how to use this input
+        # in conjunction with the context variables from the session object.
+        prompt_for_llm = (
+            user_input_for_prompt  # Or a more structured format if needed later
+        )
+
         try:
             run_result = await Runner.run(
-                agent=router_agent, input=prompt, session_id=session_id
+                starting_agent=router_agent,  # Corrected: 'starting_agent'
+                input=prompt_for_llm,
+                context=session,  # Pass the full session object as context
             )
 
             if not run_result or not isinstance(run_result.final_output, str):
@@ -423,25 +343,29 @@ Important considerations:
                     f"Value: {run_result.final_output!r}"
                 )
                 logger.error(err_msg)
-                return json.dumps({
-                    "intent": "error_router_llm_output_invalid",
-                    "reason": err_msg,
+                return json.dumps(
+                    {
+                        "intent": "error_router_llm_output_invalid",
+                        "reason": err_msg,
+                        "target_agent": "FallbackAgent",
+                        "confidence": 0.0,
+                        "is_interruption": False,
+                        "should_resume_after": False,
+                    }
+                )
+            return run_result.final_output
+        except Exception as e:
+            logger.error(f"Exception during router LLM run: {e!s}", exc_info=True)
+            return json.dumps(
+                {
+                    "intent": "error_router_llm_run_exception",
+                    "reason": f"Exception in LLM run: {e!s}",
                     "target_agent": "FallbackAgent",
                     "confidence": 0.0,
                     "is_interruption": False,
                     "should_resume_after": False,
-                })
-            return run_result.final_output
-        except Exception as e:
-            logger.error(f"Exception during router LLM run: {e!s}", exc_info=True)
-            return json.dumps({
-                "intent": "error_router_llm_run_exception",
-                "reason": f"Exception in LLM run: {e!s}",
-                "target_agent": "FallbackAgent",
-                "confidence": 0.0,
-                "is_interruption": False,
-                "should_resume_after": False,
-            })
+                }
+            )
 
     def _log_router_decision(
         self, session: "HealthAssistantSession", parsed_result: Dict[str, Any]

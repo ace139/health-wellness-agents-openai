@@ -9,9 +9,6 @@ class ConversationFlowManager:
             Tuple[str, Dict[str, Any], Dict[str, Any]]
         ] = []  # Stack of (agent_name, context, state)
         self.current_flow: Optional[Tuple[str, Dict[str, Any], Dict[str, Any]]] = None
-        # Interruption count could be managed at session level or passed in.
-        # For now, keeping it simple as per the initial proposal, but we can revisit.
-        self.interruption_count: int = 0
 
     def push_flow(
         self, agent_name: str, context: Dict[str, Any], state: Dict[str, Any]
@@ -69,9 +66,17 @@ class ConversationFlowManager:
         """Check if there are any flows saved in the stack."""
         return len(self.flow_stack) > 0
 
+    def get_stack_summary(self) -> str:
+        """Provides a summary of the agent names in the flow stack."""
+        if not self.flow_stack:
+            return "Flow stack is empty."
+        # The stack is (agent_name, context, state). We need agent_name (index 0).
+        # Stack top is at end of list. For "top to bottom" summary, reverse.
+        agent_names = [flow_item[0] for flow_item in self.flow_stack]
+        return f"S: {', '.join(reversed(agent_names))}"
+
     # Consider methods to clear stack/current flow for session resets.
     def clear_flow(self):
         """Clears the current flow and the flow stack."""
         self.flow_stack = []
         self.current_flow = None
-        self.interruption_count = 0

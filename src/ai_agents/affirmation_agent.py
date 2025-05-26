@@ -1,14 +1,17 @@
 """Affirmation agent for providing positive affirmations and encouragement."""
 
 # Standard library imports
-from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple
+import logging
+from typing import TYPE_CHECKING, Tuple
 
 # Third-party imports
-from agents import Agent
+from agents import Agent, Runner
 
 # Local application imports
 from tools.conversation import log_conversation
 from tools.wellbeing import get_wellbeing_history, log_affirmation
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from ai_agents.session import HealthAssistantSession
@@ -50,53 +53,45 @@ def create_affirmation_agent() -> Agent:
     )
 
 
-def handle_affirmation_response(
+async def handle_affirmation_response(
     user_input: str,
     session: "HealthAssistantSession",
     affirmation_agent: Agent,
-    context: Optional[Dict[str, Any]] = None,
 ) -> Tuple[str, bool]:
-    """Handle user input and generate a response using the Affirmation agent.
-
-    Args:
-        user_input: The user's input text
-        session: Current health assistant session
-        affirmation_agent: Configured Affirmation agent instance
-        context: Additional context for the agent
-
-    Returns:
-        Tuple of (response_text, should_continue)
-            - response_text: The agent's response text
-            - should_continue: Whether to continue the conversation
-    """
-    # Log the user's input
+    """Handle user input and generate a response using the Affirmation agent."""
     session.log_conversation(role="user", message=user_input)
 
     try:
-        # Prepare the context for the agent
-        agent_context = session.get_context()
-        if context:
-            agent_context.update(context)
-
-        # Get response from the agent
-        response = affirmation_agent.run(
-            user_input,
-            user_id=session.user_id,
-            session_id=session.session_id,
-            **agent_context,
+        # Session object itself is the context for Runner.run
+        run_result = await Runner.run(
+            starting_agent=affirmation_agent,
+            input=user_input,
+            context=session,  # Pass the entire session as context
         )
 
-        # Log the agent's response
-        session.log_conversation(
-            role="assistant",
-            message=response.content,
-        )
+        if not isinstance(run_result.final_output, str):
+            # Default or error response if final_output is not a string
+            response_content = (
+                "I'm here to support you. Remember, every day is a new opportunity."
+            )
+            logger.warning(
+                f"AffirmationAgent output not str: {run_result.final_output}"
+            )
+        else:
+            response_content = run_result.final_output.strip()
 
-        # Affirmation agent typically doesn't continue the conversation
-        return response.content.strip(), False
+        session.log_conversation(role="assistant", message=response_content)
+
+        # Affirmation agent typically doesn't continue the conversation in the old flow.
+        # 'should_continue' refers to if this agent's turn leads to more turns
+        # from *itself* or if it's done. Router will decide next agent.
+        return response_content, False
 
     except Exception as e:
+        # Log the exception
+        logger.error(f"Error in AffirmationAgent: {e!s}", exc_info=True)
         error_msg = "I'm here to support you. Remember, every day is a new opportunity."
+        # Log system message for the error
         session.log_conversation(
             role="system",
             message=f"Error generating affirmation: {e!s}",
