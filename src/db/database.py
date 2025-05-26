@@ -1,4 +1,5 @@
 """Database connection and session management."""
+
 from contextlib import contextmanager
 from typing import Generator
 
@@ -11,9 +12,7 @@ from .models import Base
 # Create SQLAlchemy engine
 engine = create_engine(
     settings.DATABASE_URL,
-    connect_args={"check_same_thread": False}
-    if settings.DB_DRIVER == "sqlite"
-    else {},
+    connect_args={"check_same_thread": False} if settings.DB_DRIVER == "sqlite" else {},
 )
 
 # Create session factory

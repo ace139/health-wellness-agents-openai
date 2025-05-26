@@ -1,4 +1,5 @@
 """Database configuration settings."""
+
 from pathlib import Path
 from typing import Any, Optional
 
@@ -36,7 +37,7 @@ class Settings(BaseSettings):
         case_sensitive = True
         extra = "ignore"
 
-    @model_validator(mode='before')
+    @model_validator(mode="before")
     @classmethod
     def assemble_db_connection(cls, data: Any) -> Any:
         """Assemble the database connection string if not provided."""
@@ -56,9 +57,7 @@ class Settings(BaseSettings):
         ):
             # For other databases (PostgreSQL, MySQL, etc.)
             password = (
-                data["DB_PASSWORD"].get_secret_value()
-                if data["DB_PASSWORD"]
-                else None
+                data["DB_PASSWORD"].get_secret_value() if data["DB_PASSWORD"] else None
             )
             data["DATABASE_URL"] = str(
                 PostgresDsn.build(

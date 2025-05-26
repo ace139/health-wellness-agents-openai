@@ -1,19 +1,22 @@
 """Health Monitor agent for tracking CGM readings and health metrics."""
+
 # Standard library imports
 from typing import Tuple
 
 # Third-party imports
-from openai_agents import Agent
+from agents import Agent
 
 # Local application imports
-from src.agents.session import HealthAssistantSession
-from src.tools.conversation import log_conversation
-from src.tools.health import get_cgm_statistics, log_cgm_reading
+from ai_agents.session import HealthAssistantSession
+
+# Relative imports
+from tools.conversation import log_conversation
+from tools.health import get_cgm_statistics, log_cgm_reading
 
 
 def create_health_monitor_agent() -> Agent:
     """Create and configure the Health Monitor agent.
-    
+
     Returns:
         Configured Health Monitor Agent instance
     """
@@ -37,8 +40,8 @@ def create_health_monitor_agent() -> Agent:
             "   - Elevated/high: Offer meal planning help\n"
             "   - Invalid: Ask for a valid number\n\n"
             "If user says they don't have a reading:\n"
-            "\"No problem! Please check back when you have your reading. "
-            "Remember to monitor regularly for better health management.\"\n\n"
+            '"No problem! Please check back when you have your reading. '
+            'Remember to monitor regularly for better health management."\n\n'
             "NEVER:\n"
             "- Suggest specific medications\n"
             "- Change treatment plans\n"
@@ -46,22 +49,20 @@ def create_health_monitor_agent() -> Agent:
             "- Provide specific medical advice beyond general safety"
         ),
         tools=[log_cgm_reading, get_cgm_statistics, log_conversation],
-        handoffs=["Planner", "Done"]
+        handoffs=["Planner", "Done"],
     )
 
 
 def handle_health_monitor_response(
-    user_input: str,
-    session: 'HealthAssistantSession',
-    health_monitor_agent: Agent
+    user_input: str, session: "HealthAssistantSession", health_monitor_agent: Agent
 ) -> Tuple[str, bool]:
     """Handle the user input and generate a response using the Health Monitor agent.
-    
+
     Args:
         user_input: The user's input text
         session: Current health assistant session
         health_monitor_agent: Configured Health Monitor agent instance
-        
+
     Returns:
         Tuple of (response_text, should_continue)
         - response_text: The agent's response text
@@ -69,27 +70,27 @@ def handle_health_monitor_response(
     """
     # Log the user's input
     session.log_conversation(role="user", message=user_input)
-    
+
     try:
         # Get response from the agent
         response = health_monitor_agent.run(
             user_input,
             user_id=session.user_id,
             session_id=session.session_id,
-            **session.get_context()
+            **session.get_context(),
         )
-        
+
         # Log the agent's response
         session.log_conversation(role="assistant", message=response.content)
-        
+
         # Check if we should hand off to another agent
         should_continue = not any(
             handoff in response.content.lower()
             for handoff in ["handing off to", "transferring to", "now to"]
         )
-        
+
         return response.content.strip(), should_continue
-        
+
     except Exception as e:
         error_msg = (
             "I'm sorry, I encountered an error while processing your health data: "

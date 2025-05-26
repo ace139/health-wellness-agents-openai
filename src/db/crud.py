@@ -1,4 +1,5 @@
 """CRUD operations for the health and wellness assistant."""
+
 # Standard library imports
 from datetime import date, datetime, timedelta
 from typing import Any, Dict, List, Optional, Type, TypeVar, Union
@@ -144,12 +145,10 @@ class CRUDCGMReading(CRUDBase):
             .first()
         )
 
-    def get_stats(
-        self, db: Session, user_id: int, days: int = 7
-    ) -> Dict[str, Any]:
+    def get_stats(self, db: Session, user_id: int, days: int = 7) -> Dict[str, Any]:
         """Get CGM statistics for a user."""
         cutoff_date = datetime.utcnow() - timedelta(days=days)
-        
+
         # Get basic stats
         stats = (
             db.query(
@@ -168,7 +167,7 @@ class CRUDCGMReading(CRUDBase):
         # Get stats by meal type
         by_meal = {}
         meal_types = ["breakfast", "lunch", "dinner"]
-        
+
         for meal in meal_types:
             meal_stats = (
                 db.query(
@@ -182,7 +181,7 @@ class CRUDCGMReading(CRUDBase):
                 )
                 .first()
             )
-            
+
             if meal_stats and meal_stats[1] > 0:  # Only include if we have data
                 by_meal[meal] = {
                     "average": round(float(meal_stats[0]), 1),
@@ -269,7 +268,7 @@ class CRUDMealPlan(CRUDBase):
     ) -> models.MealPlan:
         """Create or update a meal plan for a specific date."""
         meal_plan = self.get_by_date(db, user_id=user_id, date=date)
-        
+
         if meal_plan:
             # Update existing meal plan
             meal_plan.breakfast = breakfast
@@ -285,7 +284,7 @@ class CRUDMealPlan(CRUDBase):
                 dinner=dinner,
             )
             db.add(meal_plan)
-        
+
         db.commit()
         db.refresh(meal_plan)
         return meal_plan

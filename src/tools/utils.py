@@ -1,5 +1,7 @@
 """Utility functions for tools."""
-from typing import Optional, Any, Dict
+
+# Standard library imports
+from typing import Any, Dict, Optional
 
 
 def validate_user_id(user_id: Any) -> Optional[int]:
@@ -25,19 +27,14 @@ def sanitize_string(text: str, max_length: int = 500) -> str:
 
 def format_error_response(error_message: str, **kwargs) -> Dict[str, Any]:
     """Format a standardized error response."""
-    response = {
-        "success": False,
-        "error": error_message
-    }
+    response = {"success": False, "error": error_message}
     response.update(kwargs)
     return response
 
 
 def format_success_response(message: str = "", **kwargs) -> Dict[str, Any]:
     """Format a standardized success response."""
-    response = {
-        "success": True
-    }
+    response = {"success": True}
     if message:
         response["message"] = message
     response.update(kwargs)

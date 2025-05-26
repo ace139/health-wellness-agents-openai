@@ -88,15 +88,16 @@ AGENT_HANDLERS = {
     AFFIRMATION_AGENT: handle_affirmation_response,
 }
 
+
 def create_agent(agent_name: str) -> Any:
     """Create an agent by name.
-    
+
     Args:
         agent_name: Name of the agent to create
-        
+
     Returns:
         The created agent instance
-        
+
     Raises:
         ValueError: If the agent name is not recognized
     """
@@ -115,15 +116,16 @@ def create_agent(agent_name: str) -> Any:
     else:
         raise ValueError(f"Unknown agent name: {agent_name}")
 
+
 def get_agent_handler(agent_name: str):
     """Get the handler function for an agent by name.
-    
+
     Args:
         agent_name: Name of the agent
-        
+
     Returns:
         The handler function for the agent
-        
+
     Raises:
         ValueError: If the agent name is not recognized
     """

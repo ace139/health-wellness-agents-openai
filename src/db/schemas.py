@@ -1,9 +1,10 @@
 """Pydantic models for data validation."""
+
 from datetime import date, datetime
 from enum import Enum
-from typing import Dict, List, Optional, Union
+from typing import Dict, Optional, Union
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field
 
 
 # Enums for type safety
@@ -107,7 +108,10 @@ class CGMReadingBase(BaseModel):
         ..., description="Type of reading (breakfast, lunch, dinner)"
     )
     timestamp: Optional[datetime] = Field(
-        None, description="When the reading was taken (defaults to current time if not provided)"
+        None,
+        description=(
+            "When the reading was taken (defaults to current time if not provided)"
+        ),
     )
 
     class Config:
@@ -143,7 +147,10 @@ class WellbeingLogBase(BaseModel):
     user_id: int = Field(..., description="ID of the user this log belongs to")
     feeling: str = Field(..., description="How the user is feeling")
     timestamp: Optional[datetime] = Field(
-        None, description="When the log was created (defaults to current time if not provided)"
+        None,
+        description=(
+            "When the log was created (defaults to current time if not provided)"
+        ),
     )
 
     class Config:
@@ -181,7 +188,10 @@ class MealPlanBase(BaseModel):
     dinner: str = Field(..., description="Dinner meal plan")
     created_for_date: date = Field(..., description="Date this meal plan is for")
     created_at: Optional[datetime] = Field(
-        None, description="When the meal plan was created (defaults to current time if not provided)"
+        None,
+        description=(
+            "When the meal plan was created (defaults to current time if not provided)"
+        ),
     )
 
     class Config:
@@ -216,14 +226,19 @@ class ConversationLogBase(BaseModel):
     """Base schema for conversation logs."""
 
     user_id: int = Field(..., description="ID of the user in the conversation")
-    session_id: str = Field(..., description="Unique identifier for the conversation session")
+    session_id: str = Field(
+        ..., description="Unique identifier for the conversation session"
+    )
     role: ConversationRole = Field(..., description="Role in the conversation")
     agent_name: Optional[str] = Field(
         None, description="Name of the agent that generated the message"
     )
     message: str = Field(..., description="The message content")
     timestamp: Optional[datetime] = Field(
-        None, description="When the message was sent (defaults to current time if not provided)"
+        None,
+        description=(
+            "When the message was sent (defaults to current time if not provided)"
+        ),
     )
 
     class Config:

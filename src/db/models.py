@@ -1,4 +1,5 @@
 """Database models for the health and wellness assistant."""
+
 from datetime import datetime, timezone
 from typing import List
 
@@ -46,9 +47,7 @@ class User(Base):
     first_name = Column(String(100), nullable=False)
     last_name = Column(String(100), nullable=False)
     city = Column(String(100), nullable=False)
-    email = Column(
-        String(255), unique=True, nullable=False, index=True
-    )
+    email = Column(String(255), unique=True, nullable=False, index=True)
     date_of_birth = Column(Date, nullable=False)
     dietary_preference = Column(
         String(20),
@@ -65,8 +64,9 @@ class User(Base):
         nullable=True,
         comment="Comma-separated list of physical limitations",
     )
-    created_at = Column(DateTime, default=lambda: datetime.now(
-        timezone.utc), nullable=False)
+    created_at = Column(
+        DateTime, default=lambda: datetime.now(timezone.utc), nullable=False
+    )
 
     # Relationships
     cgm_readings: Mapped[List["CGMReading"]] = relationship(
@@ -100,8 +100,9 @@ class CGMReading(Base):
     __tablename__ = "cgm_readings"
 
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey(
-        "users.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
     reading = Column(
         Float,
         nullable=False,
@@ -112,8 +113,9 @@ class CGMReading(Base):
         nullable=False,
         comment="Type of reading (breakfast, lunch, dinner)",
     )
-    timestamp = Column(DateTime, default=lambda: datetime.now(
-        timezone.utc), nullable=False, index=True)
+    timestamp = Column(
+        DateTime, default=lambda: datetime.now(timezone.utc), nullable=False, index=True
+    )
 
     # Relationships
     user: Mapped[User] = relationship("User", back_populates="cgm_readings")
@@ -133,15 +135,17 @@ class WellbeingLog(Base):
     __tablename__ = "wellbeing_logs"
 
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey(
-        "users.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
     feeling = Column(
         Text,
         nullable=False,
         comment="How the user is feeling",
     )
-    timestamp = Column(DateTime, default=lambda: datetime.now(
-        timezone.utc), nullable=False, index=True)
+    timestamp = Column(
+        DateTime, default=lambda: datetime.now(timezone.utc), nullable=False, index=True
+    )
 
     # Relationships
     user: Mapped[User] = relationship("User", back_populates="wellbeing_logs")
@@ -167,8 +171,9 @@ class MealPlan(Base):
     )
 
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey(
-        "users.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
     breakfast = Column(
         Text,
         nullable=False,
@@ -185,8 +190,9 @@ class MealPlan(Base):
         comment="Dinner meal plan",
     )
     created_for_date = Column(Date, nullable=False, index=True)
-    created_at = Column(DateTime, default=lambda: datetime.now(
-        timezone.utc), nullable=False)
+    created_at = Column(
+        DateTime, default=lambda: datetime.now(timezone.utc), nullable=False
+    )
 
     # Relationships
     user: Mapped[User] = relationship("User", back_populates="meal_plans")
@@ -205,8 +211,9 @@ class ConversationLog(Base):
     __tablename__ = "conversation_logs"
 
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey(
-        "users.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
     session_id = Column(
         String(100),
         nullable=False,
@@ -227,8 +234,9 @@ class ConversationLog(Base):
         nullable=False,
         comment="The message content",
     )
-    timestamp = Column(DateTime, default=lambda: datetime.now(
-        timezone.utc), nullable=False, index=True)
+    timestamp = Column(
+        DateTime, default=lambda: datetime.now(timezone.utc), nullable=False, index=True
+    )
 
     # Relationships
     user: Mapped[User] = relationship("User", back_populates="conversation_logs")

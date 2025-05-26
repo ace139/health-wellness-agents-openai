@@ -1,20 +1,21 @@
 """General query agent for handling health-related questions."""
+
 # Standard library imports
 from typing import TYPE_CHECKING
 
 # Third-party imports
-from openai_agents import Agent
+from agents import Agent
 
 if TYPE_CHECKING:
-    from src.agents.session import HealthAssistantSession
+    from ai_agents.session import HealthAssistantSession
 
 # Local application imports
-from src.tools.conversation import log_conversation
+from tools.conversation import log_conversation
 
 
 def create_general_query_agent() -> Agent:
     """Create and configure the General Query agent.
-    
+
     Returns:
         Configured General Query Agent instance
     """
@@ -52,41 +53,38 @@ Log all interactions for quality assurance."""
         name="GeneralQuery",
         instructions=instructions,
         tools=[log_conversation],
-        handoffs=[]
+        handoffs=[],
     )
 
 
 def handle_general_query_response(
-    user_input: str,
-    session: 'HealthAssistantSession',
-    general_query_agent: Agent
+    user_input: str, session: "HealthAssistantSession", general_query_agent: Agent
 ) -> str:
     """Handle the user input and generate a response using the General Query agent.
-    
+
     Args:
         user_input: The user's input text
         session: Current health assistant session
         general_query_agent: Configured General Query agent instance
-        
+
     Returns:
         The agent's response text
     """
     try:
         # Log the conversation
         session.log_conversation(role="user", message=user_input)
-        
+
         # Get response from the agent
         response = general_query_agent.run(user_input)
-        
+
         # Log the response
         session.log_conversation(role="assistant", message=response.content)
-        
+
         return response.content.strip()
-        
+
     except Exception as e:
         error_msg = (
-            "I'm sorry, I encountered an error while processing your query: "
-            f"{e!s}"
+            f"I'm sorry, I encountered an error while processing your query: {e!s}"
         )
         session.log_conversation(role="system", message=f"Error: {e!s}")
         return error_msg
