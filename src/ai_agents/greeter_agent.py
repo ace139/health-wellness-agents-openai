@@ -1,10 +1,10 @@
 """Greeter agent for the health and wellness assistant."""
 
 # Standard library imports
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Tuple
 
 # Third-party imports
-from agents import Agent
+from agents import Agent, Runner
 
 if TYPE_CHECKING:
     from ai_agents.session import HealthAssistantSession
@@ -43,58 +43,51 @@ def create_greeter_agent() -> Agent:
     )
 
 
-def handle_greeter_response(
-    user_input: str, session: "HealthAssistantSession", greeter_agent: Agent
-) -> str:
+async def handle_greeter_response(
+    user_input: str, session: "HealthAssistantSession", agent: Agent, **kwargs
+) -> Tuple[str, bool]:
     """Handle the user input and generate a response using the Greeter agent.
 
     Args:
-        user_input: The user's input text
-        session: Current health assistant session
-        greeter_agent: Configured Greeter agent instance
+        user_input: The input string from the user.
+        session: The current HealthAssistantSession instance.
+        agent: The agent instance (e.g., Greeter agent).
+        **kwargs: Additional keyword arguments (e.g., context).
 
     Returns:
-        The agent's response text
+        Tuple[str, bool]: Agent's response string and if conversation should continue.
     """
-    # Log the user's input
-    if session.user_id:
-        session.log_conversation(role="user", message=user_input)
-
     try:
-        # Get response from the agent
-        response = greeter_agent.run(
-            user_input,
-            user_id=session.user_id or 0,  # Use 0 for unauthenticated users
-            session_id=session.session_id,
-            **session.get_context(),
+        # Log the user's input
+        if session.user_id:
+            session.log_conversation(role="user", message=user_input)
+
+        # Get the agent's response using Runner
+        run_result = await Runner.run(
+            starting_agent=agent,
+            input=user_input,
+            context=session
         )
 
-        # Check if we have a valid user ID in the response
-        if session.user_id is None and hasattr(response, "tool_calls"):
-            for tool_call in response.tool_calls:
-                if (
-                    tool_call.function.name == "fetch_user"
-                    and tool_call.function.arguments
-                ):
-                    try:
-                        # Extract user ID from the tool call
-                        import json
-
-                        args = json.loads(tool_call.function.arguments)
-                        if user_id := args.get("user_id"):
-                            session.set_user(user_id)
-                            session.update_context(user_authenticated=True)
-                            break
-                    except (json.JSONDecodeError, AttributeError):
-                        continue
+        agent_response_content: str
+        if not isinstance(run_result.final_output, str):
+            err_val = run_result.final_output
+            err_type = type(err_val)
+            error_detail = f"Greeter output not str. Got: {err_type}, Val: {err_val!r}"
+            print(f"G_ERR: {error_detail}")
+            if session.user_id: # Log specific error
+                session.log_conversation(role="system", message=f"Error: {error_detail}")
+            agent_response_content = "Sorry, I had trouble formulating a response."
+        else:
+            agent_response_content = run_result.final_output.strip()
 
         # Log the agent's response
         if session.user_id:
-            session.log_conversation(role="assistant", message=response.content)
+            session.log_conversation(role="assistant", message=agent_response_content)
 
-        return response.content.strip()
+        return agent_response_content, True
     except Exception as e:
         error_msg = f"I'm sorry, I encountered an error: {e!s}"
         if session.user_id:
-            session.log_conversation(role="system", message=f"Error: {e!s}")
-        return error_msg
+            session.log_conversation(role="assistant", message=error_msg)
+        return error_msg, True  # Continue on error, main loop handles exit

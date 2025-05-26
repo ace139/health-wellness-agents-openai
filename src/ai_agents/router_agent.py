@@ -2,13 +2,16 @@
 
 # Standard library imports
 import json
+import logging
 from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple
 
 # Third-party imports
-from agents import Agent
+from agents import Agent, Runner
 
 # Local application imports
 from ai_agents.session import HealthAssistantSession
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     # Local application imports
@@ -118,7 +121,7 @@ class RouterAgent:
                 "reason": "Failed to parse router response",
             }
 
-    def determine_next_agent(
+    async def determine_next_agent(
         self,
         user_input: str,
         current_agent_name: str,
@@ -148,13 +151,27 @@ class RouterAgent:
             )
 
         try:
-            # Get the router's response
-            response = self.agent.run(
-                user_input, **{"current_agent": current_agent_name, **(context or {})}
+            # Get the router's response using Runner.run_sync
+            # SDK ctx: HealthAssistantSession. App 'context' dict unused by Runner.
+            # Routing inputs (current_agent_name, etc.) in user_input/instr.
+            logger.debug(f"Router: agent type={type(self.agent)}")
+            run_result = await Runner.run(
+                starting_agent=self.agent,
+                input=user_input,
+                context=session  # HealthAssistantSession instance as SDK context
             )
 
+            if not isinstance(run_result.final_output, str):
+                err_msg = (
+                    f"Router output not str. Type: {type(run_result.final_output)}, "
+                    f"Val: {run_result.final_output!r}"
+                )
+                raise ValueError(err_msg)
+
+            agent_response_content = run_result.final_output
+            
             # Parse the response
-            result = self.parse_router_response(response.content)
+            result = self.parse_router_response(agent_response_content)
 
             # Log the routing decision
             if session.user_id:

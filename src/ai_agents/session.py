@@ -104,3 +104,8 @@ class HealthAssistantSession:
             user_id: ID of the authenticated user
         """
         self.user_id = user_id
+
+    async def close(self) -> None:
+        """Perform any cleanup for the session, if necessary."""
+        # No specific cleanup needed currently; method for compatibility.
+        pass

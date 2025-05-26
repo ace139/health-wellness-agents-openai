@@ -1,17 +1,20 @@
 """Health Monitor agent for tracking CGM readings and health metrics."""
 
 # Standard library imports
-from typing import Tuple
+import logging
+from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple
 
 # Third-party imports
-from agents import Agent
+from agents import Agent, Runner
 
 # Local application imports
-from ai_agents.session import HealthAssistantSession
-
-# Relative imports
 from tools.conversation import log_conversation
 from tools.health import get_cgm_statistics, log_cgm_reading
+
+if TYPE_CHECKING:
+    from .session import HealthAssistantSession  # noqa: F401
+
+logger = logging.getLogger(__name__)
 
 
 def create_health_monitor_agent() -> Agent:
@@ -23,7 +26,9 @@ def create_health_monitor_agent() -> Agent:
     return Agent(
         name="HealthMonitor",
         instructions=(
-            "You are the Health Monitor agent responsible for CGM readings.\n\n"
+            "You are a Health Monitor agent. Your role is to help users log and "
+            "understand their CGM readings and other vital health metrics. "
+            "Be empathetic, informative, and encouraging.\n\n"
             "CRITICAL SAFETY GUARDRAILS:\n"
             "- Only accept numeric values between 20 and 600\n"
             "- For dangerous values (<50 or >250), ALWAYS advise medical attention\n"
@@ -32,8 +37,8 @@ def create_health_monitor_agent() -> Agent:
             "Your job is to:\n"
             "1. Ask for current blood glucose reading in mg/dL\n"
             "2. Validate input is numeric and within range (20-600)\n"
-            "3. Use log_cgm_reading tool to record it\n"
-            "4. Use get_cgm_statistics to show trends if available\n"
+            "Then, provide a brief interpretation and ask if they want more details "
+            "or statistics (use 'get_cgm_statistics').\n\n"
             "5. Respond based on status:\n"
             "   - Dangerously low/high: Urgent medical attention message\n"
             "   - Normal (70-140): Positive reinforcement\n"
@@ -53,8 +58,11 @@ def create_health_monitor_agent() -> Agent:
     )
 
 
-def handle_health_monitor_response(
-    user_input: str, session: "HealthAssistantSession", health_monitor_agent: Agent
+async def handle_health_monitor_response(
+    user_input: str,
+    session: "HealthAssistantSession",
+    agent: Agent,
+    context: Optional[Dict[str, Any]] = None,
 ) -> Tuple[str, bool]:
     """Handle the user input and generate a response using the Health Monitor agent.
 
@@ -73,28 +81,67 @@ def handle_health_monitor_response(
 
     try:
         # Get response from the agent
-        response = health_monitor_agent.run(
-            user_input,
-            user_id=session.user_id,
-            session_id=session.session_id,
-            **session.get_context(),
+        run_result = await Runner.run(
+            starting_agent=agent, 
+            input=user_input, 
+            context=session # Pass the HealthAssistantSession instance
         )
 
+        if not isinstance(run_result.final_output, str):
+            # Handle cases where the agent might not return a string
+            # Or if there's an error within the agent execution handled by the Runner
+            final_output_str = str(run_result.final_output)
+            prefix = "HealthMonitor agent did not return a string: "
+            ellipsis = "..."
+
+            # Max len for logger.error() arg to keep total line under 88 chars.
+            # Calculation: indent + logger.error() + content + ) <= 88.
+            max_content_len_for_log = 62
+
+            log_content: str
+            if len(prefix) + len(final_output_str) > max_content_len_for_log:
+                # Calculate space for the variable part of final_output_str
+                len_available_for_var_part = (
+                    max_content_len_for_log
+                    - len(prefix)
+                    - len(ellipsis)
+                )
+                # Ensure non-negative length for slicing
+                len_available_for_var_part = max(0, len_available_for_var_part)
+
+                truncated_var_part = final_output_str[:len_available_for_var_part]
+                log_content = prefix + truncated_var_part + ellipsis
+            else:
+                log_content = prefix + final_output_str
+
+            logger.error(log_content)
+            response_content = "I'm sorry, I had trouble understanding that."
+        else:
+            response_content = run_result.final_output
+
         # Log the agent's response
-        session.log_conversation(role="assistant", message=response.content)
+        log_response_content = response_content
+        if len(log_response_content) > 70: # Truncate if too long for logging
+            log_response_content = log_response_content[:67] + "..."
+        session.log_conversation(role="assistant", message=log_response_content)
 
         # Check if we should hand off to another agent
         should_continue = not any(
-            handoff in response.content.lower()
+            handoff in response_content.lower()
             for handoff in ["handing off to", "transferring to", "now to"]
         )
 
-        return response.content.strip(), should_continue
+        return response_content.strip(), should_continue
 
     except Exception as e:
         error_msg = (
-            "I'm sorry, I encountered an error while processing your health data: "
+            "Sorry, an error occurred while "
+            "processing your health data: "
             f"{e!s}"
         )
-        session.log_conversation(role="system", message=f"Error: {e!s}")
+        # Truncate long exception messages for logging to avoid line length issues
+        log_message = f"Error: {e!s}"
+        if len(log_message) > 70: # 70 to leave room for 'Error: ' and quotes
+            log_message = log_message[:67] + "..."
+        session.log_conversation(role="system", message=log_message)
         return error_msg, True

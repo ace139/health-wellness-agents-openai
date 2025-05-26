@@ -4,7 +4,7 @@
 from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple
 
 # Third-party imports
-from agents import Agent
+from agents import Agent, Runner
 
 # Local application imports
 from tools.conversation import log_conversation
@@ -70,10 +70,10 @@ def create_planner_agent() -> Agent:
     )
 
 
-def handle_planner_response(
+async def handle_planner_response(
     user_input: str,
     session: "HealthAssistantSession",
-    planner_agent: Agent,
+    agent: Agent,  # Changed from planner_agent to generic agent
     context: Optional[Dict[str, Any]] = None,
 ) -> Tuple[str, bool]:
     """Handle the user input and generate a response using the Planner agent.
@@ -81,7 +81,7 @@ def handle_planner_response(
     Args:
         user_input: The user's input text
         session: Current health assistant session
-        planner_agent: Configured Planner agent instance
+        agent: Configured Planner agent instance
         context: Additional context for the agent
 
     Returns:
@@ -98,24 +98,42 @@ def handle_planner_response(
         if context:
             agent_context.update(context)
 
-        # Get response from the agent
-        response = planner_agent.run(
-            user_input,
-            user_id=session.user_id,
-            session_id=session.session_id,
-            **agent_context,
+        # Get response from the agent using Runner
+        run_result = await Runner.run(
+            starting_agent=agent,
+            input=user_input,
+            context=session # HealthAssistantSession is the SDK context
+            # Any additional app-level 'context' (like the original 'agent_context')
+            # would need to be part of the 'input' or handled by agent's instructions
+            # if it's meant to influence the agent's direct execution via Runner.
         )
+
+        agent_response_content: str
+        if not isinstance(run_result.final_output, str):
+            err_val = run_result.final_output
+            err_type = type(err_val)
+            error_detail = (
+                f"Planner output not str. Got: {err_type}, "
+                f"Val: {err_val!r}"
+            )
+            print(f"P_ERR: {error_detail}")
+            session.log_conversation(role="system", message=f"Error: {error_detail}")
+            agent_response_content = "Sorry, I had trouble with the meal plan."
+        else:
+            agent_response_content = run_result.final_output.strip()
 
         # Log the agent's response
-        session.log_conversation(role="assistant", message=response.content)
+        session.log_conversation(role="assistant", message=agent_response_content)
 
-        # Check if we should hand off to another agent
+        # Check for handoff based on content. Runner/SDK handoff TBD.
+        # Assuming simple content check for now.
+        handoff_keywords = ["handing off to", "transferring to", "now to"]
         should_continue = not any(
-            handoff in response.content.lower()
-            for handoff in ["handing off to", "transferring to", "now to"]
+            handoff_phrase in agent_response_content.lower()
+            for handoff_phrase in handoff_keywords
         )
 
-        return response.content.strip(), should_continue
+        return agent_response_content, should_continue
 
     except Exception as e:
         error_msg = (

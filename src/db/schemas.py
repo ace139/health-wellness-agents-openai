@@ -46,8 +46,8 @@ class UserBase(BaseModel):
     )
 
     class Config:
-        orm_mode = True
-        schema_extra = {
+        from_attributes = True
+        json_schema_extra = {
             "example": {
                 "email": "john.doe@example.com",
                 "first_name": "John",
@@ -86,7 +86,7 @@ class UserUpdate(BaseModel):
     )
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class UserInDB(UserBase):
@@ -96,7 +96,7 @@ class UserInDB(UserBase):
     created_at: datetime = Field(..., description="When the user was created")
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class CGMReadingBase(BaseModel):
@@ -115,8 +115,8 @@ class CGMReadingBase(BaseModel):
     )
 
     class Config:
-        orm_mode = True
-        schema_extra = {
+        from_attributes = True
+        json_schema_extra = {
             "example": {
                 "user_id": 1,
                 "reading": 120.5,
@@ -138,7 +138,7 @@ class CGMReadingInDB(CGMReadingBase):
     id: int = Field(..., description="Reading's unique identifier")
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class WellbeingLogBase(BaseModel):
@@ -154,8 +154,8 @@ class WellbeingLogBase(BaseModel):
     )
 
     class Config:
-        orm_mode = True
-        schema_extra = {
+        from_attributes = True
+        json_schema_extra = {
             "example": {
                 "user_id": 1,
                 "feeling": "Feeling great today!",
@@ -176,7 +176,7 @@ class WellbeingLogInDB(WellbeingLogBase):
     id: int = Field(..., description="Log's unique identifier")
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class MealPlanBase(BaseModel):
@@ -195,8 +195,8 @@ class MealPlanBase(BaseModel):
     )
 
     class Config:
-        orm_mode = True
-        schema_extra = {
+        from_attributes = True
+        json_schema_extra = {
             "example": {
                 "user_id": 1,
                 "breakfast": "Oatmeal with berries and nuts",
@@ -219,7 +219,7 @@ class MealPlanInDB(MealPlanBase):
     id: int = Field(..., description="Meal plan's unique identifier")
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class ConversationLogBase(BaseModel):
@@ -242,8 +242,8 @@ class ConversationLogBase(BaseModel):
     )
 
     class Config:
-        orm_mode = True
-        schema_extra = {
+        from_attributes = True
+        json_schema_extra = {
             "example": {
                 "user_id": 1,
                 "session_id": "550e8400-e29b-41d4-a716-446655440000",
@@ -267,7 +267,7 @@ class ConversationLogInDB(ConversationLogBase):
     id: int = Field(..., description="Log's unique identifier")
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 # Response schemas
@@ -283,7 +283,7 @@ class CGMStatistics(BaseModel):
     )
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 # Combined schemas for API responses
@@ -301,4 +301,4 @@ class UserWithStats(UserInDB):
     )
 
     class Config:
-        orm_mode = True
+        from_attributes = True

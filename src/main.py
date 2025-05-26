@@ -25,6 +25,16 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# ANSI escape codes for colors
+class Colors:
+    BLUE = '\033[94m'
+    GREEN = '\033[92m'
+    YELLOW = '\033[93m'
+    RED = '\033[91m'
+    ENDC = '\033[0m' # Resets the color
+    BOLD = '\033[1m'
+
+
 
 class HealthAssistant:
     """Main class for the Health and Wellness Assistant application."""
@@ -134,7 +144,7 @@ class HealthAssistant:
 
         try:
             # Use the router to determine the next agent
-            next_agent, confidence, reason = self.router.determine_next_agent(
+            next_agent, confidence, reason = await self.router.determine_next_agent(
                 user_input=user_input,
                 current_agent_name=self.current_agent_name,
                 session=self.session,
@@ -160,17 +170,28 @@ class HealthAssistant:
         except Exception as e:
             logger.error(f"Error processing input: {e}", exc_info=True)
             return "I'm sorry, I encountered an error processing your request."
+        except asyncio.CancelledError:
+            logger.info("Input processing was cancelled.")
+            # Log cancellation; run_cli handles KeyboardInterrupt for shutdown.
+            return "Your request was cancelled." # This message precedes "Goodbye!"
 
     async def close(self):
-        """Clean up resources."""
+        """Clean up resources, including the session and database connection."""
+        logger.info("Closing Health Assistant resources...")
         try:
             if self.session:
-                self.session.close()
+                logger.info(f"Closing session: {self.session.session_id}")
+                await self.session.close()
+                self.session = None  # Ensure session is cleared
+                logger.info("Session closed.")
             if self.db:
-                self.db.close()
+                logger.info("Closing database connection.")
+                self.db.close()  # Assuming db.close() is synchronous
+                logger.info("Database connection closed.")
         except Exception as e:
-            logger.error(f"Error during cleanup: {e}")
-
+            logger.error(f"Error during cleanup: {e}", exc_info=True)
+        finally:
+            logger.info("Health Assistant cleanup finished.")
 
 async def run_cli():
     """Run the health assistant in CLI mode."""
@@ -180,11 +201,11 @@ async def run_cli():
         # Initialize the assistant
         success = await assistant.initialize()
         if not success:
-            print("Failed to initialize the health assistant. Please check the logs.")
+            print(f"{Colors.RED}Initialization failed. Check logs.{Colors.ENDC}")
             return
 
-        print("Welcome to the Health and Wellness Assistant!")
-        print("Type 'exit' to quit at any time.\n")
+        print(f"{Colors.YELLOW}Welcome to Health Assistant!{Colors.ENDC}")
+        print(f"{Colors.YELLOW}Type 'exit' to quit at any time.\n{Colors.ENDC}")
 
         # Start a new session
         await assistant.start_session()
@@ -192,10 +213,11 @@ async def run_cli():
         # Main interaction loop
         while True:
             try:
-                user_input = input("You: ").strip()
+                prompt = f"{Colors.BLUE}{Colors.BOLD}You: {Colors.ENDC}"
+                user_input = input(prompt).strip()
 
                 if user_input.lower() in ["exit", "quit", "bye"]:
-                    print("Goodbye! Take care of yourself!")
+                    print(f"{Colors.YELLOW}Goodbye! Take care!{Colors.ENDC}")
                     break
 
                 if not user_input:
@@ -203,19 +225,21 @@ async def run_cli():
 
                 # Process the input and get the response
                 response = await assistant.process_input(user_input)
-                print(f"\nAssistant: {response}\n")
+                assistant_prompt = f"{Colors.GREEN}{Colors.BOLD}Assistant:{Colors.ENDC}"
+                assistant_response = f"{Colors.GREEN}{response}{Colors.ENDC}"
+                print(f"\n{assistant_prompt} {assistant_response}\n")
 
             except KeyboardInterrupt:
-                print("\nGoodbye!")
+                print(f"\n{Colors.YELLOW}Goodbye!{Colors.ENDC}")
                 break
             except Exception as e:
-                print(f"\nAn error occurred: {e}")
+                print(f"\n{Colors.RED}An error occurred: {e}{Colors.ENDC}")
                 logger.exception("Error in CLI loop")
                 continue
 
     except Exception as e:
         logger.exception("Fatal error in CLI")
-        print(f"A fatal error occurred: {e}")
+        print(f"{Colors.RED}A fatal error occurred: {e}{Colors.ENDC}")
     finally:
         await assistant.close()
 
