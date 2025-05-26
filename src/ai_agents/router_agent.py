@@ -27,114 +27,45 @@ class RouterAgent:
         self.agent = self._create_router_agent()
         self.valid_agents = [
             "Greeter",
-            "WellBeing",
-            "HealthMonitor",
             "Planner",
-            "Affirmation",
+            "HealthMonitor",
             "GeneralQuery",
+            "Affirmation",
+            "WellBeing",
             "Done",  # For completed flows
         ]
 
-    ROUTER_INSTRUCTIONS = """You are a sophisticated conversational flow router. 
-    Your primary goal is to analyze the user's input and the current 
-    conversational context to determine the correct course of action.
-
-Available context variables (injected if present on session object for Runner.run):
-- {{routing_context_current_agent}}: Name of the last/current active agent.
-- {{routing_context_current_state_summary}}: Summary of current task/state 
-  (e.g., "Task: awaiting_cgm_reading", "General conversation").
-- {{routing_context_flow_stack_summary}}: Indicates pending flows on stack 
-  (e.g., "Pending flows: Yes (1 item)", "No pending flows").
-- {{routing_context_has_pending_flow}}: Boolean indicating if there's a pending flow.
-- {{routing_context_interaction_count}}: Current interaction count in the session.
-
-Your tasks:
-1.  Classify the user's input. Intents can be:
-    *   Flow-related:
-        - 'continue_flow': User wants to continue current task/topic with the 
-          previous agent or its successor.
-        - 'interruption_query': User asks off-topic question or makes a comment 
-          deviating from the current flow.
-        - 'resume_flow': User explicitly wants to return to a previously 
-          interrupted topic/task.
-        - 'new_flow': User wants to start a new conversation/topic, or input 
-          doesn't fit an ongoing flow.
-    *   Content-related (if initiating a new flow or if the current flow is general):
-        - 'greeting': Standard greetings, initiating conversation.
-        - 'wellbeing': Discussions about feelings, mood, emotional state.
-        - 'health_monitoring': Related to health metrics, CGM readings, symptoms.
-        - 'meal_planning': Questions or discussions about diet, meal plans, food.
-        - 'affirmation_seeking': User seeks encouragement or positive statements.
-        - 'general_query': General question not fitting other categories and not 
-          interrupting a specific task.
-        - 'inappropriate': Harmful, dangerous, or off-limits content.
-
-2.  Determine if input is an interruption to a focused task.
-    - `is_interruption` (true/false): True if intent is 'interruption_query' 
-      AND a clear ongoing task is deviated from (see 
-      `routing_context_current_state_summary`).
-
-3.  If interruption, decide if conversation should prompt to resume later.
-    - `should_resume_after` (true/false): Typically true if `is_interruption` 
-      is true and interruption is brief.
-
-4.  Specify `target_agent` for this turn. Examples:
-    - 'interruption_query': "GeneralQuery"
-    - 'resume_flow': "{{routing_context_current_agent}}" (or agent from stack; 
-      calling code handles pop. Identify 'resume_flow' intent; target is often 
-      the resumed agent).
-    - 'new_flow' + 'greeting': "Greeter"
-    - 'new_flow' + 'health_monitoring': "HealthMonitor"
-    - 'continue_flow' with 'HealthMonitor': "HealthMonitor"
-    - If 'inappropriate': "Greeter" (as a safe default to handle it gracefully)
-
-Output ONLY a JSON object with the following structure:
-{
-    "intent": "classified_intent_combination",
-    "is_interruption": false,
-    "should_resume_after": false,
-    "target_agent": "NameOfAgent",
-    "confidence": 0.9,
-    "reason": "Brief explanation of routing, referencing context if helpful."
-}
-
-Example Scenarios:
-- User: "Hello!", Ctx: agent="None", state="No task", flow="No pending"
-  Output: {"intent": "new_flow_greeting", "is_interruption": false, 
-  "should_resume_after": false, "target_agent": "Greeter", 
-  "confidence": 0.98, "reason": "User greeting, no active flow."}
-
-- User: "Weather?", Context: current_agent="HealthMonitor", 
-  state_summary="Task: awaiting_cgm_reading", flow_summary="No pending"
-  Output: {"intent": "interruption_query", "is_interruption": true, 
-  "should_resume_after": true, "target_agent": "GeneralQuery", 
-  "confidence": 0.9, "reason": "Off-topic query during CGM task."}
-
-- User: "Reading is 120.", Context: current_agent="HealthMonitor", 
-  state_summary="Task: awaiting_cgm_reading", flow_summary="No pending"
-  Output: {"intent": "continue_flow_health_monitoring", 
-  "is_interruption": false, "should_resume_after": false, 
-  "target_agent": "HealthMonitor", "confidence": 0.95, 
-  "reason": "User providing requested CGM reading."}
-
-- User: "Back to health readings.", Context: current_agent="GeneralQuery", 
-  state_summary="General convo", flow_summary="Pending: Yes (1 item, 
-  HealthMonitor)"
-  Output: {"intent": "resume_flow", "is_interruption": false, 
-  "should_resume_after": false, "target_agent": "HealthMonitor", 
-  "confidence": 0.99, "reason": "User wants to resume health discussion per stack."}
-
-Important considerations:
-- If `routing_context_flow_stack_summary` shows pending flow, and user says 
-  "continue" or "back to it", intent is 'resume_flow'. `target_agent` is often 
-  from stack top (e.g., `HealthMonitor`).
-- If `routing_context_current_agent` is focused (e.g., HealthMonitor mid-task 
-  per `routing_context_current_state_summary`) and input is unrelated, it's 
-  likely 'interruption_query'.
-- `target_agent` must be one of: "Greeter", "WellBeing", 
-  "HealthMonitor", "Planner", "Affirmation", "GeneralQuery".
-- Be cautious with 'inappropriate' classification.
-"""
+    ROUTER_INSTRUCTIONS = (
+        "Your role is to determine the most appropriate next agent based on the user's "
+        "input and conversation history.\n\n"
+        "**IMPORTANT**: The 'Greeter' agent's primary role is initial User ID "
+        "collection. If the `session.user_id` is already set, you should **NOT** "
+        "route to 'Greeter' unless the user explicitly asks to change their User ID "
+        "or restart the identification process. The main application loop handles "
+        "initial calls to 'Greeter' when no User ID is present.\n\n"
+        "Consider the following specialized agents (available *after* User ID is "
+        "collected):\n"
+        "- Planner: Manages health plans, schedules, and goals. Use for inputs "
+        "related to planning, scheduling appointments, setting health goals, or "
+        "modifying existing plans.\n"
+        "- HealthMonitor: Tracks and logs user's health metrics (e.g., heart rate, "
+        "sleep, activity) and food intake. Use for inputs about logging data, or "
+        "asking about past logged data.\n"
+        "- GeneralQuery: Answers general health and wellness questions that don't fit "
+        "other specialized agents. This is a good default if no other agent is a "
+        "clear match.\n"
+        "- Affirmation: Provides positive affirmations and motivational support. "
+        "Use for requests for encouragement, positive statements, or to boost mood.\n"
+        "- WellBeing: Focuses on mental wellbeing, stress management, mindfulness "
+        "exercises, and emotional support. Use for inputs related to stress, "
+        "anxiety, meditation, or general emotional state.\n\n"
+        "Based on the user's latest input and the conversation history (if available), "
+        "select the most relevant agent from the list above.\n"
+        "If the user's input is ambiguous or doesn't clearly map to a specialized "
+        "agent, route to 'GeneralQuery'.\n\n"
+        'Output *only* the name of the chosen agent (e.g., "Planner", '
+        '"GeneralQuery").'
+    )
 
     def _create_router_agent(self) -> Agent:
         """Create and configure the Router agent.

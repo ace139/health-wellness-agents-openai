@@ -57,6 +57,7 @@ class HealthAssistant:
                 "HealthMonitor",
                 "Planner",
                 "Affirmation",
+                "GeneralQuery",
             ]:
                 self.agents[agent_name] = create_agent(agent_name)
 
@@ -164,14 +165,32 @@ class HealthAssistant:
             The agent's response text
         """
         if not self.session:
-            logger.warning("process_input called without an active session.")
-            return "Please start a session first."
+            logger.error("process_input called with no active session.")
+            return "Error: No active session. Please restart."
+
+        # Ensure User ID is collected before proceeding with other agents
+        if self.session.user_id is None:
+            logger.info("User ID not found in session. Routing input to GreeterAgent.")
+            # User input here is what they typed, potentially their User ID
+            response_text, _ = await self.run_agent(GREETER_AGENT, user_input)
+            # After Greeter runs, check again if ID was captured
+            if self.session.user_id is None:
+                # If still no ID, Greeter's response (e.g., asking again) is returned.
+                return response_text
+            else:
+                # ID captured. Greeter's response (which might include a follow-up
+                # question or confirmation) is returned for this turn. The next
+                # turn will proceed to the router if the ID is now set.
+                return response_text
+
+        # If User ID exists, proceed with normal routing logic
+        logger.info(f"User ID {self.session.user_id} found. Proceeding with router.")
 
         try:
             # 1. Get routing decision from RouterAgent
             router_decision = await self.router.determine_next_agent(
                 user_input=user_input,
-                session=self.session, # RouterAgent uses this to prepare context
+                session=self.session,  # RouterAgent uses this to prepare context
             )
 
             logger.info(
@@ -186,11 +205,13 @@ class HealthAssistant:
             # 2. Let the session handle the routing decision and manage flow stack
             # Returns: agent to run, input for agent, and is_resumed_flow flag.
             # (HealthAssistantSession.handle_routing_decision will be updated next)
-            agent_to_run, input_for_agent, is_resumed_flow = \
-                await self.session.handle_routing_decision(
-                    router_decision=router_decision,
-                    original_user_input=user_input
-                )
+            (
+                agent_to_run,
+                input_for_agent,
+                is_resumed_flow,
+            ) = await self.session.handle_routing_decision(
+                router_decision=router_decision, original_user_input=user_input
+            )
 
             logger.info(
                 f"Session decided: Run '{agent_to_run}' (Resumed: {is_resumed_flow}) "
@@ -199,7 +220,7 @@ class HealthAssistant:
 
             # 3. Prepare context for the agent run
             agent_run_context = {
-                "routing_decision": router_decision, # Full router output for agent
+                "routing_decision": router_decision,  # Full router output for agent
                 "is_resumed_flow": is_resumed_flow,
             }
 
@@ -219,12 +240,8 @@ class HealthAssistant:
             # This self.current_agent_name is for the main loop's tracking.
             if should_continue:
                 self.current_agent_name = agent_to_run
-            elif is_resumed_flow:
-                # If a resumed flow just finished (should_continue=False),
-                # and a flow is pending, router guides to resume it.
-                # If no flow pending, router guides to new flow (e.g. Greeter).
-                # For now, just log. The next router call will handle it.
-                logger.info(f"Resumed flow '{agent_to_run}' finished.")
+            # No specific handling for elif is_resumed_flow needed here anymore,
+            # as the flow manager and router handle the logic.
 
             return response
 

@@ -16,7 +16,7 @@ from tools.user import fetch_user
 if TYPE_CHECKING:
     from ai_agents.session import HealthAssistantSession
 
-logger = logging.getLogger(__name__) # Added logger
+logger = logging.getLogger(__name__)  # Added logger
 
 
 def create_planner_agent() -> Agent:
@@ -74,9 +74,7 @@ def create_planner_agent() -> Agent:
 
 
 async def handle_planner_response(
-    user_input: str,
-    session: "HealthAssistantSession",
-    planner_agent: Agent,  # Renamed parameter for clarity
+    user_input: str, session: "HealthAssistantSession", agent: Agent
 ) -> agent_output:
     """Handle the user input using the Planner agent and return AgentOutput.
 
@@ -96,28 +94,24 @@ async def handle_planner_response(
     try:
         # Get response from the agent using Runner
         run_result = await Runner.run(
-            starting_agent=planner_agent, # Used renamed parameter
-            input=user_input,
-            context=session,  # HealthAssistantSession is the SDK context
+            starting_agent=agent, input=user_input, context=session
         )
 
         # Ensure final_output is a string
         default_response = (
-            "Sorry, I had trouble generating the meal plan. "
-            "Please try again."
+            "Sorry, I had trouble generating the meal plan. Please try again."
         )
         if (
-            not isinstance(run_result.final_output, str) 
+            not isinstance(run_result.final_output, str)
             or run_result.final_output is None
         ):
             error_detail = (
-                f"PlannerAgent output not str or None: "
-                f"{run_result.final_output!r}"
+                f"PlannerAgent output not str or None: {run_result.final_output!r}"
             )
             logger.warning(error_detail)
             session.log_conversation(
                 role="system", message=f"Error: {error_detail}"
-            ) # Keep system log
+            )  # Keep system log
             run_result.final_output = default_response
         else:
             run_result.final_output = run_result.final_output.strip()
@@ -125,7 +119,7 @@ async def handle_planner_response(
         # Log the agent's response
         session.log_conversation(role="assistant", message=run_result.final_output)
 
-        return run_result # Return the AgentOutput directly
+        return run_result  # Return the AgentOutput directly
 
     except Exception as e:
         logger.error(f"Error in PlannerAgent: {e!s}", exc_info=True)
@@ -133,9 +127,7 @@ async def handle_planner_response(
             "I'm sorry, I encountered an error while creating your meal plan. "
             "Please try again later."
         )
-        session.log_conversation(
-            role="system", message=f"Error in PlannerAgent: {e!s}"
-        )
+        session.log_conversation(role="system", message=f"Error in PlannerAgent: {e!s}")
         session.log_conversation(role="assistant", message=error_response_content)
 
         return agent_output(
@@ -143,5 +135,5 @@ async def handle_planner_response(
             tool_calls=[],
             tool_outputs=[],
             error=str(e),
-            history=[]
+            history=[],
         )

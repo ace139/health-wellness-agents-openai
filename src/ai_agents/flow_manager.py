@@ -13,8 +13,11 @@ class ConversationFlowManager:
         ] = None
 
     def push_flow(
-        self, agent_name: str, context: Dict[str, Any], state: Dict[str, Any],
-        user_input: Optional[str] = None  # Added for storing interrupted input
+        self,
+        agent_name: str,
+        context: Dict[str, Any],
+        state: Dict[str, Any],
+        user_input: Optional[str] = None,  # Added for storing interrupted input
     ):
         """Save current flow to stack before handling interruption or switching flow."""
         flow_data = (agent_name, context, state, user_input)

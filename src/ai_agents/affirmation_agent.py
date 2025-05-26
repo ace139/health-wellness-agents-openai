@@ -21,7 +21,7 @@ def create_affirmation_agent() -> Agent:
     """Create and configure the Affirmation agent.
 
     Returns:
-        Configured Affirmation Agent instance
+        agent: Configured Affirmation agent instance
     """
     return Agent(
         name="Affirmation",
@@ -56,7 +56,7 @@ def create_affirmation_agent() -> Agent:
 async def handle_affirmation_response(
     user_input: str,
     session: "HealthAssistantSession",
-    affirmation_agent: Agent,
+    agent: Agent,
 ) -> agent_output:
     """Handle user input using the Affirmation agent and return the agent's output."""
     session.log_conversation(role="user", message=user_input)
@@ -64,15 +64,14 @@ async def handle_affirmation_response(
     try:
         # Session object itself is the context for Runner.run
         run_result = await Runner.run(
-            starting_agent=affirmation_agent,
+            starting_agent=agent,
             input=user_input,
             context=session,  # Pass the entire session as context
         )
 
         # Ensure final_output is a string
         default_affirmation = (
-            "I'm here to support you. "
-            "Remember, every day is a new opportunity."
+            "I'm here to support you. Remember, every day is a new opportunity."
         )
         if not isinstance(run_result.final_output, str):
             logger.warning(
@@ -107,5 +106,5 @@ async def handle_affirmation_response(
             tool_calls=[],
             tool_outputs=[],
             error=str(e),
-            history=[]
+            history=[],
         )

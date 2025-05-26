@@ -17,3 +17,4 @@ You are working with the OpenAI Agents SDK [https://openai.github.io/openai-agen
 Pass every file thorough ruff, at each save.
 
 - The uv environement is already set up with the necessary dependencies installed, everytime you need to run a .py file, first activate the virtual environment with $source .venv/bin/activate
+- Don't automatically run the main.py file, always ask user to run it manually. 

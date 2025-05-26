@@ -15,6 +15,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+
 def create_general_query_agent() -> Agent:
     """Create and configure the General Query agent.
 
@@ -60,14 +61,14 @@ Log all interactions for quality assurance."""
 
 
 async def handle_general_query_response(
-    user_input: str, session: "HealthAssistantSession", general_query_agent: Agent
+    user_input: str, session: "HealthAssistantSession", agent: Agent
 ) -> agent_output:
     """Handle user input with General Query agent & return AgentOutput.
 
     Args:
         user_input: The user's input text
         session: Current health assistant session
-        general_query_agent: Configured General Query agent instance
+        agent: Configured General Query agent instance
 
     Returns:
         Tuple of (response_text, should_continue)
@@ -76,15 +77,12 @@ async def handle_general_query_response(
         session.log_conversation(role="user", message=user_input)
 
         run_result = await Runner.run(
-            starting_agent=general_query_agent,
-            input=user_input,
-            context=session
+            starting_agent=agent, input=user_input, context=session
         )
 
         # Ensure final_output is a string
         default_response = (
-            "I'm sorry, I had trouble understanding that. "
-            "Could you please rephrase?"
+            "I'm sorry, I had trouble understanding that. Could you please rephrase?"
         )
         if not isinstance(run_result.final_output, str):
             logger.warning(
@@ -93,9 +91,7 @@ async def handle_general_query_response(
             )
             run_result.final_output = default_response
         elif run_result.final_output is None:
-            logger.warning(
-                "GeneralQueryAgent output was None. Using default."
-            )
+            logger.warning("GeneralQueryAgent output was None. Using default.")
             run_result.final_output = default_response
         else:
             run_result.final_output = run_result.final_output.strip()
@@ -119,5 +115,5 @@ async def handle_general_query_response(
             tool_calls=[],
             tool_outputs=[],
             error=str(e),
-            history=[]
+            history=[],
         )

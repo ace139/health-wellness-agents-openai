@@ -58,16 +58,14 @@ def create_health_monitor_agent() -> Agent:
 
 
 async def handle_health_monitor_response(
-    user_input: str,
-    session: "HealthAssistantSession",
-    health_monitor_agent: Agent, # Renamed parameter
+    user_input: str, session: "HealthAssistantSession", agent: Agent
 ) -> agent_output:
     """Handle the user input using the Health Monitor agent and return AgentOutput.
 
     Args:
         user_input: The user's input text
         session: Current health assistant session
-        health_monitor_agent: Configured Health Monitor agent instance
+        agent: Configured Health Monitor agent instance
 
     Returns:
         Tuple of (response_text, should_continue)
@@ -80,23 +78,21 @@ async def handle_health_monitor_response(
     try:
         # Get response from the agent
         run_result = await Runner.run(
-            starting_agent=health_monitor_agent, # Used renamed parameter
+            starting_agent=agent,
             input=user_input,
             context=session,  # Pass the HealthAssistantSession instance
         )
 
         # Ensure final_output is a string
         default_response = (
-            "I'm sorry, I had trouble understanding that. "
-            "Could you please try again?"
+            "I'm sorry, I had trouble understanding that. Could you please try again?"
         )
         if (
-            not isinstance(run_result.final_output, str) 
+            not isinstance(run_result.final_output, str)
             or run_result.final_output is None
         ):
             logger.warning(
-                "HealthMonitorAgent output not str or None: %s. "
-                "Using default.",
+                "HealthMonitorAgent output not str or None: %s. Using default.",
                 run_result.final_output,
             )
             run_result.final_output = default_response
@@ -109,7 +105,7 @@ async def handle_health_monitor_response(
             log_response_content = log_response_content[:67] + "..."
         session.log_conversation(role="assistant", message=log_response_content)
 
-        return run_result # Return the AgentOutput directly
+        return run_result  # Return the AgentOutput directly
 
     except Exception as e:
         logger.error(f"Error in HealthMonitorAgent: {e!s}", exc_info=True)
@@ -128,5 +124,5 @@ async def handle_health_monitor_response(
             tool_calls=[],
             tool_outputs=[],
             error=str(e),
-            history=[]
+            history=[],
         )

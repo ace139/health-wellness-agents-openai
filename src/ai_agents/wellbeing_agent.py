@@ -55,14 +55,14 @@ def create_wellbeing_agent() -> Agent:
 
 
 async def handle_wellbeing_response(
-    user_input: str, session: "HealthAssistantSession", wellbeing_agent: Agent
+    user_input: str, session: "HealthAssistantSession", agent: Agent
 ) -> agent_output:
     """Handle the user input using the WellBeing agent and return AgentOutput.
 
     Args:
         user_input: The user's input text
         session: Current health assistant session
-        wellbeing_agent: Configured WellBeing agent instance
+        agent: Configured Wellbeing agent instance.
 
     Returns:
         Tuple of (response_text, should_continue)
@@ -71,23 +71,20 @@ async def handle_wellbeing_response(
 
     try:
         run_result = await Runner.run(
-            starting_agent=wellbeing_agent,
-            input=user_input,
-            context=session,
+            starting_agent=agent, input=user_input, context=session
         )
 
         # Ensure final_output is a string
         default_response = (
-            "I'm sorry, I had trouble processing that. "
-            "Let's try something else."
+            "I'm sorry, I had trouble processing that. Let's try something else."
         )
         if (
-            not isinstance(run_result.final_output, str) 
+            not isinstance(run_result.final_output, str)
             or run_result.final_output is None
         ):
             logger.warning(
                 "WellBeingAgent output not str or None: %s. Using default.",
-                run_result.final_output
+                run_result.final_output,
             )
             run_result.final_output = default_response
         else:
@@ -112,5 +109,5 @@ async def handle_wellbeing_response(
             tool_calls=[],
             tool_outputs=[],
             error=str(e),
-            history=[]
+            history=[],
         )

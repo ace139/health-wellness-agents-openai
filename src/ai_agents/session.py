@@ -208,17 +208,17 @@ class HealthAssistantSession:
         if self.flow_manager.flow_stack:
             pending_count = len(self.flow_manager.flow_stack)
             flow_stack_summary_parts.append(f"Pending: {pending_count} flow(s)")
-        
+
         self.routing_context_flow_stack_summary = (
             ", ".join(flow_stack_summary_parts) or "Empty"
         )
         self.routing_context_has_pending_flow = self.flow_manager.has_pending_flow()
         self.routing_context_current_agent = self.current_agent_name or "None"
         self.routing_context_interaction_count = self.interaction_count
-        
+
         current_task = self.conversation_state.get("current_task", "N/A")
         # Ensure summary is not too long
-        summary_text = f"Task: {str(current_task)[:50]}" 
+        summary_text = f"Task: {str(current_task)[:50]}"
         self.routing_context_current_state_summary = summary_text
 
     async def handle_routing_decision(
@@ -291,7 +291,7 @@ class HealthAssistantSession:
                     resumed_agent_name,
                     session_context_snapshot,
                     agent_specific_state,
-                    resumed_agent_input
+                    resumed_agent_input,
                 ) = resumed_flow_data
 
                 self.apply_context_snapshot(session_context_snapshot)
