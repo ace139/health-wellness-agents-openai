@@ -1,10 +1,11 @@
 """Planner agent for creating personalized meal plans."""
 
 # Standard library imports
-from typing import TYPE_CHECKING, Tuple
+import logging
+from typing import TYPE_CHECKING
 
 # Third-party imports
-from agents import Agent, Runner
+from agents import Agent, AgentOutput, Runner  # Alphabetized and on separate lines
 
 # Local application imports
 from tools.conversation import log_conversation
@@ -14,6 +15,8 @@ from tools.user import fetch_user
 
 if TYPE_CHECKING:
     from ai_agents.session import HealthAssistantSession
+
+logger = logging.getLogger(__name__) # Added logger
 
 
 def create_planner_agent() -> Agent:
@@ -73,9 +76,9 @@ def create_planner_agent() -> Agent:
 async def handle_planner_response(
     user_input: str,
     session: "HealthAssistantSession",
-    agent: Agent,  # Changed from planner_agent to generic agent
-) -> Tuple[str, bool]:
-    """Handle the user input and generate a response using the Planner agent.
+    planner_agent: Agent,  # Renamed parameter for clarity
+) -> AgentOutput:
+    """Handle the user input using the Planner agent and return AgentOutput.
 
     Args:
         user_input: The user's input text
@@ -93,41 +96,52 @@ async def handle_planner_response(
     try:
         # Get response from the agent using Runner
         run_result = await Runner.run(
-            starting_agent=agent,
+            starting_agent=planner_agent, # Used renamed parameter
             input=user_input,
             context=session,  # HealthAssistantSession is the SDK context
-            # Any additional app-level 'context' (like the original 'agent_context')
-            # would need to be part of the 'input' or handled by agent's instructions
-            # if it's meant to influence the agent's direct execution via Runner.
         )
 
-        agent_response_content: str
-        if not isinstance(run_result.final_output, str):
-            err_val = run_result.final_output
-            err_type = type(err_val)
-            error_detail = f"Planner output not str. Got: {err_type}, Val: {err_val!r}"
-            print(f"P_ERR: {error_detail}")
-            session.log_conversation(role="system", message=f"Error: {error_detail}")
-            agent_response_content = "Sorry, I had trouble with the meal plan."
+        # Ensure final_output is a string
+        default_response = (
+            "Sorry, I had trouble generating the meal plan. "
+            "Please try again."
+        )
+        if (
+            not isinstance(run_result.final_output, str) 
+            or run_result.final_output is None
+        ):
+            error_detail = (
+                f"PlannerAgent output not str or None: "
+                f"{run_result.final_output!r}"
+            )
+            logger.warning(error_detail)
+            session.log_conversation(
+                role="system", message=f"Error: {error_detail}"
+            ) # Keep system log
+            run_result.final_output = default_response
         else:
-            agent_response_content = run_result.final_output.strip()
+            run_result.final_output = run_result.final_output.strip()
 
         # Log the agent's response
-        session.log_conversation(role="assistant", message=agent_response_content)
+        session.log_conversation(role="assistant", message=run_result.final_output)
 
-        # Check for handoff based on content. Runner/SDK handoff TBD.
-        # Assuming simple content check for now.
-        handoff_keywords = ["handing off to", "transferring to", "now to"]
-        should_continue = not any(
-            handoff_phrase in agent_response_content.lower()
-            for handoff_phrase in handoff_keywords
-        )
-
-        return agent_response_content, should_continue
+        return run_result # Return the AgentOutput directly
 
     except Exception as e:
-        error_msg = (
-            f"I'm sorry, I encountered an error while creating your meal plan: {e!s}"
+        logger.error(f"Error in PlannerAgent: {e!s}", exc_info=True)
+        error_response_content = (
+            "I'm sorry, I encountered an error while creating your meal plan. "
+            "Please try again later."
         )
-        session.log_conversation(role="system", message=f"Error: {str(e)}")
-        return error_msg, True
+        session.log_conversation(
+            role="system", message=f"Error in PlannerAgent: {e!s}"
+        )
+        session.log_conversation(role="assistant", message=error_response_content)
+
+        return AgentOutput(
+            final_output=error_response_content,
+            tool_calls=[],
+            tool_outputs=[],
+            error=str(e),
+            history=[]
+        )

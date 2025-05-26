@@ -26,12 +26,12 @@ class RouterAgent:
         """Initialize the Router agent."""
         self.agent = self._create_router_agent()
         self.valid_agents = [
-            "GreeterAgent",
-            "WellBeingAgent",
-            "HealthMonitorAgent",
-            "PlannerAgent",
-            "AffirmationAgent",
-            "GeneralQueryAgent",
+            "Greeter",
+            "WellBeing",
+            "HealthMonitor",
+            "Planner",
+            "Affirmation",
+            "GeneralQuery",
             "Done",  # For completed flows
         ]
 
@@ -79,14 +79,14 @@ Your tasks:
       is true and interruption is brief.
 
 4.  Specify `target_agent` for this turn. Examples:
-    - 'interruption_query': "GeneralQueryAgent"
+    - 'interruption_query': "GeneralQuery"
     - 'resume_flow': "{{routing_context_current_agent}}" (or agent from stack; 
       calling code handles pop. Identify 'resume_flow' intent; target is often 
       the resumed agent).
-    - 'new_flow' + 'greeting': "GreeterAgent"
-    - 'new_flow' + 'health_monitoring': "HealthMonitorAgent"
-    - 'continue_flow' with 'HealthMonitorAgent': "HealthMonitorAgent"
-    - If 'inappropriate': "GreeterAgent" (as a safe default to handle it gracefully)
+    - 'new_flow' + 'greeting': "Greeter"
+    - 'new_flow' + 'health_monitoring': "HealthMonitor"
+    - 'continue_flow' with 'HealthMonitor': "HealthMonitor"
+    - If 'inappropriate': "Greeter" (as a safe default to handle it gracefully)
 
 Output ONLY a JSON object with the following structure:
 {
@@ -101,38 +101,38 @@ Output ONLY a JSON object with the following structure:
 Example Scenarios:
 - User: "Hello!", Ctx: agent="None", state="No task", flow="No pending"
   Output: {"intent": "new_flow_greeting", "is_interruption": false, 
-  "should_resume_after": false, "target_agent": "GreeterAgent", 
+  "should_resume_after": false, "target_agent": "Greeter", 
   "confidence": 0.98, "reason": "User greeting, no active flow."}
 
-- User: "Weather?", Context: current_agent="HealthMonitorAgent", 
+- User: "Weather?", Context: current_agent="HealthMonitor", 
   state_summary="Task: awaiting_cgm_reading", flow_summary="No pending"
   Output: {"intent": "interruption_query", "is_interruption": true, 
-  "should_resume_after": true, "target_agent": "GeneralQueryAgent", 
+  "should_resume_after": true, "target_agent": "GeneralQuery", 
   "confidence": 0.9, "reason": "Off-topic query during CGM task."}
 
-- User: "Reading is 120.", Context: current_agent="HealthMonitorAgent", 
+- User: "Reading is 120.", Context: current_agent="HealthMonitor", 
   state_summary="Task: awaiting_cgm_reading", flow_summary="No pending"
   Output: {"intent": "continue_flow_health_monitoring", 
   "is_interruption": false, "should_resume_after": false, 
-  "target_agent": "HealthMonitorAgent", "confidence": 0.95, 
+  "target_agent": "HealthMonitor", "confidence": 0.95, 
   "reason": "User providing requested CGM reading."}
 
-- User: "Back to health readings.", Context: current_agent="GeneralQueryAgent", 
+- User: "Back to health readings.", Context: current_agent="GeneralQuery", 
   state_summary="General convo", flow_summary="Pending: Yes (1 item, 
-  HealthMonitorAgent)"
+  HealthMonitor)"
   Output: {"intent": "resume_flow", "is_interruption": false, 
-  "should_resume_after": false, "target_agent": "HealthMonitorAgent", 
+  "should_resume_after": false, "target_agent": "HealthMonitor", 
   "confidence": 0.99, "reason": "User wants to resume health discussion per stack."}
 
 Important considerations:
 - If `routing_context_flow_stack_summary` shows pending flow, and user says 
   "continue" or "back to it", intent is 'resume_flow'. `target_agent` is often 
-  from stack top (e.g., `HealthMonitorAgent`).
-- If `routing_context_current_agent` is focused (e.g., HealthMonitorAgent mid-task 
+  from stack top (e.g., `HealthMonitor`).
+- If `routing_context_current_agent` is focused (e.g., HealthMonitor mid-task 
   per `routing_context_current_state_summary`) and input is unrelated, it's 
   likely 'interruption_query'.
-- `target_agent` must be one of: "GreeterAgent", "WellBeingAgent", 
-  "HealthMonitorAgent", "PlannerAgent", "AffirmationAgent", "GeneralQueryAgent".
+- `target_agent` must be one of: "Greeter", "WellBeing", 
+  "HealthMonitor", "Planner", "Affirmation", "GeneralQuery".
 - Be cautious with 'inappropriate' classification.
 """
 

@@ -2,17 +2,17 @@
 
 # Standard library imports
 import logging
-from typing import TYPE_CHECKING, Tuple
+from typing import TYPE_CHECKING
 
 # Third-party imports
-from agents import Agent, Runner
+from agents import Agent, AgentOutput, Runner
 
 # Local application imports
 from tools.conversation import log_conversation
 from tools.health import get_cgm_statistics, log_cgm_reading
 
 if TYPE_CHECKING:
-    from .session import HealthAssistantSession  # noqa: F401
+    from .session import HealthAssistantSession
 
 logger = logging.getLogger(__name__)
 
@@ -61,9 +61,9 @@ def create_health_monitor_agent() -> Agent:
 async def handle_health_monitor_response(
     user_input: str,
     session: "HealthAssistantSession",
-    agent: Agent,
-) -> Tuple[str, bool]:
-    """Handle the user input and generate a response using the Health Monitor agent.
+    health_monitor_agent: Agent, # Renamed parameter
+) -> AgentOutput:
+    """Handle the user input using the Health Monitor agent and return AgentOutput.
 
     Args:
         user_input: The user's input text
@@ -81,60 +81,53 @@ async def handle_health_monitor_response(
     try:
         # Get response from the agent
         run_result = await Runner.run(
-            starting_agent=agent,
+            starting_agent=health_monitor_agent, # Used renamed parameter
             input=user_input,
             context=session,  # Pass the HealthAssistantSession instance
         )
 
-        if not isinstance(run_result.final_output, str):
-            # Handle cases where the agent might not return a string
-            # Or if there's an error within the agent execution handled by the Runner
-            final_output_str = str(run_result.final_output)
-            prefix = "HealthMonitor agent did not return a string: "
-            ellipsis = "..."
-
-            # Max len for logger.error() arg to keep total line under 88 chars.
-            # Calculation: indent + logger.error() + content + ) <= 88.
-            max_content_len_for_log = 62
-
-            log_content: str
-            if len(prefix) + len(final_output_str) > max_content_len_for_log:
-                # Calculate space for the variable part of final_output_str
-                len_available_for_var_part = (
-                    max_content_len_for_log - len(prefix) - len(ellipsis)
-                )
-                # Ensure non-negative length for slicing
-                len_available_for_var_part = max(0, len_available_for_var_part)
-
-                truncated_var_part = final_output_str[:len_available_for_var_part]
-                log_content = prefix + truncated_var_part + ellipsis
-            else:
-                log_content = prefix + final_output_str
-
-            logger.error(log_content)
-            response_content = "I'm sorry, I had trouble understanding that."
+        # Ensure final_output is a string
+        default_response = (
+            "I'm sorry, I had trouble understanding that. "
+            "Could you please try again?"
+        )
+        if (
+            not isinstance(run_result.final_output, str) 
+            or run_result.final_output is None
+        ):
+            logger.warning(
+                "HealthMonitorAgent output not str or None: %s. "
+                "Using default.",
+                run_result.final_output,
+            )
+            run_result.final_output = default_response
         else:
-            response_content = run_result.final_output
+            run_result.final_output = run_result.final_output.strip()
 
-        # Log the agent's response
-        log_response_content = response_content
-        if len(log_response_content) > 70:  # Truncate if too long for logging
+        # Log the agent's response (potentially truncated)
+        log_response_content = run_result.final_output
+        if len(log_response_content) > 70:
             log_response_content = log_response_content[:67] + "..."
         session.log_conversation(role="assistant", message=log_response_content)
 
-        # Check if we should hand off to another agent
-        should_continue = not any(
-            handoff in response_content.lower()
-            for handoff in ["handing off to", "transferring to", "now to"]
-        )
-
-        return response_content.strip(), should_continue
+        return run_result # Return the AgentOutput directly
 
     except Exception as e:
-        error_msg = f"Sorry, an error occurred while processing your health data: {e!s}"
-        # Truncate long exception messages for logging to avoid line length issues
-        log_message = f"Error: {e!s}"
-        if len(log_message) > 70:  # 70 to leave room for 'Error: ' and quotes
-            log_message = log_message[:67] + "..."
-        session.log_conversation(role="system", message=log_message)
-        return error_msg, True
+        logger.error(f"Error in HealthMonitorAgent: {e!s}", exc_info=True)
+        error_response_content = (
+            "Sorry, an error occurred while processing your health data. "
+            "Please try again later."
+        )
+        # Log system message for the error, then the agent's fallback response
+        session.log_conversation(
+            role="system", message=f"Error in HealthMonitorAgent: {e!s}"
+        )
+        session.log_conversation(role="assistant", message=error_response_content)
+
+        return AgentOutput(
+            final_output=error_response_content,
+            tool_calls=[],
+            tool_outputs=[],
+            error=str(e),
+            history=[]
+        )

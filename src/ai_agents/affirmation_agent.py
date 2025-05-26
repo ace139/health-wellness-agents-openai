@@ -2,19 +2,19 @@
 
 # Standard library imports
 import logging
-from typing import TYPE_CHECKING, Tuple
+from typing import TYPE_CHECKING
 
 # Third-party imports
-from agents import Agent, Runner
+from agents import Agent, AgentOutput, Runner
 
 # Local application imports
 from tools.conversation import log_conversation
 from tools.wellbeing import get_wellbeing_history, log_affirmation
 
-logger = logging.getLogger(__name__)
-
 if TYPE_CHECKING:
     from ai_agents.session import HealthAssistantSession
+
+logger = logging.getLogger(__name__)
 
 
 def create_affirmation_agent() -> Agent:
@@ -57,8 +57,8 @@ async def handle_affirmation_response(
     user_input: str,
     session: "HealthAssistantSession",
     affirmation_agent: Agent,
-) -> Tuple[str, bool]:
-    """Handle user input and generate a response using the Affirmation agent."""
+) -> AgentOutput:
+    """Handle user input using the Affirmation agent and return the agent's output."""
     session.log_conversation(role="user", message=user_input)
 
     try:
@@ -69,31 +69,43 @@ async def handle_affirmation_response(
             context=session,  # Pass the entire session as context
         )
 
+        # Ensure final_output is a string
+        default_affirmation = (
+            "I'm here to support you. "
+            "Remember, every day is a new opportunity."
+        )
         if not isinstance(run_result.final_output, str):
-            # Default or error response if final_output is not a string
-            response_content = (
-                "I'm here to support you. Remember, every day is a new opportunity."
-            )
             logger.warning(
-                f"AffirmationAgent output not str: {run_result.final_output}"
+                "AffirmationAgent output not str: %s. Using default.",
+                run_result.final_output,
             )
+            run_result.final_output = default_affirmation
+        elif run_result.final_output is None:
+            logger.warning("AffirmationAgent output was None. Using default.")
+            run_result.final_output = default_affirmation
         else:
-            response_content = run_result.final_output.strip()
+            run_result.final_output = run_result.final_output.strip()
 
-        session.log_conversation(role="assistant", message=response_content)
+        # Log the (potentially modified) agent's response
+        session.log_conversation(role="assistant", message=run_result.final_output)
 
-        # Affirmation agent typically doesn't continue the conversation in the old flow.
-        # 'should_continue' refers to if this agent's turn leads to more turns
-        # from *itself* or if it's done. Router will decide next agent.
-        return response_content, False
+        return run_result
 
     except Exception as e:
-        # Log the exception
         logger.error(f"Error in AffirmationAgent: {e!s}", exc_info=True)
-        error_msg = "I'm here to support you. Remember, every day is a new opportunity."
-        # Log system message for the error
-        session.log_conversation(
-            role="system",
-            message=f"Error generating affirmation: {e!s}",
+        error_response_content = (
+            "I'm here to support you. Remember, every day is a new opportunity."
         )
-        return error_msg, False
+        # Log system message for the error, then the agent's fallback response
+        session.log_conversation(
+            role="system", message=f"Error in AffirmationAgent: {e!s}"
+        )
+        session.log_conversation(role="assistant", message=error_response_content)
+
+        return AgentOutput(
+            final_output=error_response_content,
+            tool_calls=[],
+            tool_outputs=[],
+            error=str(e),
+            history=[]
+        )

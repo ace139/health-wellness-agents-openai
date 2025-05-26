@@ -1,17 +1,18 @@
 """Greeter agent for the health and wellness assistant."""
 
 # Standard library imports
-from typing import TYPE_CHECKING, Tuple
+from typing import TYPE_CHECKING
 
 # Third-party imports
-from agents import Agent, Runner
-
-if TYPE_CHECKING:
-    from ai_agents.session import HealthAssistantSession
+from agents import Agent, AgentOutput, Runner  # Alphabetized
 
 # Local application imports
 from tools.conversation import log_conversation
 from tools.user import fetch_user
+
+if TYPE_CHECKING:
+    from ai_agents.session import HealthAssistantSession  # Local, but for type checking
+
 
 
 def create_greeter_agent() -> Agent:
@@ -45,8 +46,8 @@ def create_greeter_agent() -> Agent:
 
 async def handle_greeter_response(
     user_input: str, session: "HealthAssistantSession", agent: Agent
-) -> Tuple[str, bool]:
-    """Handle the user input and generate a response using the Greeter agent.
+) -> AgentOutput:
+    """Handle the user input using the Greeter agent and return the agent's output.
 
     Args:
         user_input: The input string from the user.
@@ -54,7 +55,7 @@ async def handle_greeter_response(
         agent: The agent instance (e.g., Greeter agent).
 
     Returns:
-        Tuple[str, bool]: Agent's response string and if conversation should continue.
+        Runner.RunOutput: The output from the agent execution.
     """
     try:
         # Log the user's input
@@ -62,32 +63,61 @@ async def handle_greeter_response(
             session.log_conversation(role="user", message=user_input)
 
         # Get the agent's response using Runner
-        run_result = await Runner.run(
+        run_result: AgentOutput = await Runner.run(
             starting_agent=agent, input=user_input, context=session
         )
 
-        agent_response_content: str
+        # Ensure final_output is a string
         if not isinstance(run_result.final_output, str):
             err_val = run_result.final_output
             err_type = type(err_val)
-            error_detail = f"Greeter output not str. Type: {err_type}, Val: {err_val!r}"
-            print(f"G_ERR: {error_detail}")
-            if session.user_id:  # Log specific error
-                log_message = f"SysErr: {error_detail}"
-                if len(log_message) > 80: # Max length for the message itself
-                    log_message = log_message[:77] + "..."
-                session.log_conversation(role="system", message=log_message)
-            agent_response_content = "Sorry, I had trouble formulating a response."
-        else:
-            agent_response_content = run_result.final_output.strip()
+            error_detail = (
+                f"Greeter agent output was not a string. "
+                f"Type: {err_type}, Value: {err_val!r}"
+            )
+            print(f"GREETER_AGENT_ERROR: {error_detail}")
+            if session.user_id:
+                # Log a concise system error message
+                log_msg = "System: Greeter agent produced non-string output."
+                session.log_conversation(role="system", message=log_msg)
+            # Replace non-string output with a generic error message for the user
+            run_result.final_output = (
+                "I'm having a little trouble formulating a response right now. "
+                "Please try again shortly."
+            )
+        elif run_result.final_output is not None: # Guard against None before stripping
+            run_result.final_output = run_result.final_output.strip()
+        else: # Handle case where final_output is None
+            error_detail = "Greeter agent output was None."
+            print(f"GREETER_AGENT_ERROR: {error_detail}")
+            if session.user_id:
+                log_msg = "System: Greeter agent produced no output (None)."
+                session.log_conversation(role="system", message=log_msg)
+            run_result.final_output = (
+                "I seem to be at a loss for words. "
+                "Could you try rephrasing?"
+            )
 
-        # Log the agent's response
-        if session.user_id:
-            session.log_conversation(role="assistant", message=agent_response_content)
-
-        return agent_response_content, True
+        # Logging of user input and agent response can be centralized
+        # in the session manager or main loop after this handler returns AgentOutput.
+        return run_result
     except Exception as e:
-        error_msg = f"I'm sorry, I encountered an error: {e!s}"
+        # If an exception occurs, we should ideally return an AgentOutput
+        # that signifies an error. The openai-agents SDK's AgentOutput
+        # can carry error information. For now, creating a mock error response.
+        # This needs alignment with how the main loop handles agent exceptions.
+        error_response_content = f"I'm sorry, I encountered an error: {e!s}"
         if session.user_id:
-            session.log_conversation(role="assistant", message=error_msg)
-        return error_msg, True  # Continue on error, main loop handles exit
+            session.log_conversation(role="assistant", message=error_response_content)
+        
+        # Construct a valid AgentOutput for error case
+        # This is a simplified error representation. A more robust solution
+        # might involve creating an AgentOutput with error details.
+        # For now, we'll mimic a simple string output within AgentOutput.
+        return AgentOutput(
+            final_output=error_response_content,
+            tool_calls=[],
+            tool_outputs=[],
+            error=str(e),
+            history=[]
+        )

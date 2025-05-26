@@ -6,26 +6,30 @@ class ConversationFlowManager:
 
     def __init__(self):
         self.flow_stack: List[
-            Tuple[str, Dict[str, Any], Dict[str, Any]]
-        ] = []  # Stack of (agent_name, context, state)
-        self.current_flow: Optional[Tuple[str, Dict[str, Any], Dict[str, Any]]] = None
+            Tuple[str, Dict[str, Any], Dict[str, Any], Optional[str]]
+        ] = []  # Stack of (agent_name, context, state, user_input)
+        self.current_flow: Optional[
+            Tuple[str, Dict[str, Any], Dict[str, Any], Optional[str]]
+        ] = None
 
     def push_flow(
-        self, agent_name: str, context: Dict[str, Any], state: Dict[str, Any]
+        self, agent_name: str, context: Dict[str, Any], state: Dict[str, Any],
+        user_input: Optional[str] = None  # Added for storing interrupted input
     ):
         """Save current flow to stack before handling interruption or switching flow."""
+        flow_data = (agent_name, context, state, user_input)
         if self.current_flow:
             self.flow_stack.append(self.current_flow)
-        self.current_flow = (agent_name, context, state)
+        self.current_flow = flow_data
 
-    def pop_flow(self) -> Optional[Tuple[str, Dict[str, Any], Dict[str, Any]]]:
+    def pop_flow(
+        self,
+    ) -> Optional[Tuple[str, Dict[str, Any], Dict[str, Any], Optional[str]]]:
         """Return to previous flow after interruption or when a sub-flow completes."""
         if self.flow_stack:
             self.current_flow = self.flow_stack.pop()
             return self.current_flow
         # If stack is empty, it means there's no previous flow to return to.
-        # current_flow might hold last active flow if not explicitly cleared.
-        # We might set self.current_flow = None here if stack is empty.
         self.current_flow = None
         return None
 

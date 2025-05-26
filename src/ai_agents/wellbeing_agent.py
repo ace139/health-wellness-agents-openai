@@ -2,10 +2,10 @@
 
 # Standard library imports
 import logging
-from typing import TYPE_CHECKING, Tuple
+from typing import TYPE_CHECKING
 
 # Third-party imports
-from agents import Agent, Runner
+from agents import Agent, AgentOutput, Runner  # Alphabetized and on separate lines
 
 if TYPE_CHECKING:
     from ai_agents.session import HealthAssistantSession
@@ -56,8 +56,8 @@ def create_wellbeing_agent() -> Agent:
 
 async def handle_wellbeing_response(
     user_input: str, session: "HealthAssistantSession", wellbeing_agent: Agent
-) -> Tuple[str, bool]:
-    """Handle the user input and generate a response using the WellBeing agent.
+) -> AgentOutput:
+    """Handle the user input using the WellBeing agent and return AgentOutput.
 
     Args:
         user_input: The user's input text
@@ -76,23 +76,41 @@ async def handle_wellbeing_response(
             context=session,
         )
 
-        if not isinstance(run_result.final_output, str):
-            response_content = "I'm sorry, I had trouble processing that."
+        # Ensure final_output is a string
+        default_response = (
+            "I'm sorry, I had trouble processing that. "
+            "Let's try something else."
+        )
+        if (
+            not isinstance(run_result.final_output, str) 
+            or run_result.final_output is None
+        ):
             logger.warning(
-                f"WellBeingAgent output not str: {run_result.final_output}"
+                "WellBeingAgent output not str or None: %s. Using default.",
+                run_result.final_output
             )
+            run_result.final_output = default_response
         else:
-            response_content = run_result.final_output.strip()
+            run_result.final_output = run_result.final_output.strip()
 
-        session.log_conversation(role="assistant", message=response_content)
-        return response_content, False
+        session.log_conversation(role="assistant", message=run_result.final_output)
+        return run_result
 
     except Exception as e:
         logger.error(f"Error in WellBeingAgent: {e!s}", exc_info=True)
-        error_msg = (
-            "I'm sorry, I encountered an error while processing your wellbeing check."
+        error_response_content = (
+            "I'm sorry, I encountered an error during our wellbeing check. "
+            "Let's move on for now."
         )
         session.log_conversation(
-            role="system", message=f"Error wellbeing check: {e!s}"
+            role="system", message=f"Error in WellBeingAgent: {e!s}"
         )
-        return error_msg, False
+        session.log_conversation(role="assistant", message=error_response_content)
+
+        return AgentOutput(
+            final_output=error_response_content,
+            tool_calls=[],
+            tool_outputs=[],
+            error=str(e),
+            history=[]
+        )

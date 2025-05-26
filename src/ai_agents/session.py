@@ -184,26 +184,42 @@ class HealthAssistantSession:
             return resumed_agent_name, agent_specific_state, session_context_snapshot
         return None
 
-    def prepare_for_routing(self) -> None:
+    def prepare_for_routing(
+        self, context_dict: Optional[Dict[str, Any]] = None
+    ) -> None:
         """
         Prepares session attributes that the RouterAgent might use as context_variables.
         These attributes are set directly on the session object and are prefixed
         with 'routing_context_' to be easily identifiable.
+        Uses context_dict if provided to update session state before preparing.
         """
-        self.routing_context_current_agent = self.current_agent_name or "None"
+        # Use context_dict if provided to update current agent and conversation state
+        if context_dict:
+            self.current_agent_name = context_dict.get(
+                "current_agent_name", self.current_agent_name
+            )
+            self.conversation_state.update(context_dict.get("current_state", {}))
 
-        current_task = self.conversation_state.get("current_task", "N/A")
-        pending_data = self.conversation_state.get("pending_data", {})
-        pending_data_summary = (
-            f"Keys:{','.join(pending_data.keys())}" if pending_data else "None"
+        # Summarize flow stack for the router
+        flow_stack_summary_parts = []
+        if self.flow_manager.current_flow:
+            current_flow_agent_name = self.flow_manager.current_flow[0]
+            flow_stack_summary_parts.append(f"Current: {current_flow_agent_name}")
+        if self.flow_manager.flow_stack:
+            pending_count = len(self.flow_manager.flow_stack)
+            flow_stack_summary_parts.append(f"Pending: {pending_count} flow(s)")
+        
+        self.routing_context_flow_stack_summary = (
+            ", ".join(flow_stack_summary_parts) or "Empty"
         )
-        self.routing_context_current_state_summary = (
-            f"Task:{current_task},Pending:{pending_data_summary}"
-        )
-
-        self.routing_context_flow_stack_summary = self.flow_manager.get_stack_summary()
         self.routing_context_has_pending_flow = self.flow_manager.has_pending_flow()
+        self.routing_context_current_agent = self.current_agent_name or "None"
         self.routing_context_interaction_count = self.interaction_count
+        
+        current_task = self.conversation_state.get("current_task", "N/A")
+        # Ensure summary is not too long
+        summary_text = f"Task: {str(current_task)[:50]}" 
+        self.routing_context_current_state_summary = summary_text
 
     async def handle_routing_decision(
         self, router_decision: Dict[str, Any], original_user_input: str
@@ -253,9 +269,9 @@ class HealthAssistantSession:
 
                 self.flow_manager.push_flow(
                     agent_name=previous_agent_for_flow_stack,
-                    agent_input=interrupted_input,
-                    session_context_snapshot=self.get_context_snapshot(),
-                    agent_specific_state=previous_agent_specific_state,
+                    user_input=interrupted_input,
+                    context=self.get_context_snapshot(),
+                    state=previous_agent_specific_state,
                 )
                 logger.info(
                     f"Saved flow for '{previous_agent_for_flow_stack}'. "
@@ -273,9 +289,9 @@ class HealthAssistantSession:
             if resumed_flow_data:
                 (
                     resumed_agent_name,
-                    resumed_agent_input,  # Input that started the resumed flow
-                    session_context_snapshot,  # Session state at interruption
-                    agent_specific_state,  # Specific state of the agent
+                    session_context_snapshot,
+                    agent_specific_state,
+                    resumed_agent_input
                 ) = resumed_flow_data
 
                 self.apply_context_snapshot(session_context_snapshot)

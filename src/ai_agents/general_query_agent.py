@@ -2,16 +2,16 @@
 
 # Standard library imports
 import logging
-from typing import TYPE_CHECKING, Tuple
+from typing import TYPE_CHECKING
 
 # Third-party imports
-from agents import Agent, Runner
-
-if TYPE_CHECKING:
-    from ai_agents.session import HealthAssistantSession
+from agents import Agent, AgentOutput, Runner
 
 # Local application imports
 from tools.conversation import log_conversation
+
+if TYPE_CHECKING:
+    from ai_agents.session import HealthAssistantSession
 
 logger = logging.getLogger(__name__)
 
@@ -61,8 +61,8 @@ Log all interactions for quality assurance."""
 
 async def handle_general_query_response(
     user_input: str, session: "HealthAssistantSession", general_query_agent: Agent
-) -> Tuple[str, bool]:
-    """Handle the user input and generate a response using the General Query agent.
+) -> AgentOutput:
+    """Handle user input with General Query agent & return AgentOutput.
 
     Args:
         user_input: The user's input text
@@ -81,23 +81,43 @@ async def handle_general_query_response(
             context=session
         )
 
+        # Ensure final_output is a string
+        default_response = (
+            "I'm sorry, I had trouble understanding that. "
+            "Could you please rephrase?"
+        )
         if not isinstance(run_result.final_output, str):
-            response_content = "I'm sorry, I had trouble understanding that."
             logger.warning(
-                f"GeneralQueryAgent output not str: {run_result.final_output}"
+                "GeneralQueryAgent output not str: %s. Using default.",
+                run_result.final_output,
             )
+            run_result.final_output = default_response
+        elif run_result.final_output is None:
+            logger.warning(
+                "GeneralQueryAgent output was None. Using default."
+            )
+            run_result.final_output = default_response
         else:
-            response_content = run_result.final_output.strip()
+            run_result.final_output = run_result.final_output.strip()
 
-        session.log_conversation(role="assistant", message=response_content)
-        return response_content, False
+        session.log_conversation(role="assistant", message=run_result.final_output)
+        return run_result
 
     except Exception as e:
         logger.error(f"Error in GeneralQueryAgent: {e!s}", exc_info=True)
-        error_msg = (
-            "I'm sorry, I encountered an error while processing your query."
+        error_response_content = (
+            "I'm sorry, I encountered an error while processing your query. "
+            "Please try again later."
         )
         session.log_conversation(
-            role="system", message=f"Error general query: {e!s}"
+            role="system", message=f"Error in GeneralQueryAgent: {e!s}"
         )
-        return error_msg, False
+        session.log_conversation(role="assistant", message=error_response_content)
+
+        return AgentOutput(
+            final_output=error_response_content,
+            tool_calls=[],
+            tool_outputs=[],
+            error=str(e),
+            history=[]
+        )
