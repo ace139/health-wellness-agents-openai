@@ -50,7 +50,20 @@ class HealthAssistantSession:
         self.routing_context_has_pending_flow: bool = False
         self.routing_context_interaction_count: int = 0
 
+        # Information about the task currently being prepared for execution
+        self._current_task_agent_name: Optional[str] = None
+        self._current_task_input: Optional[str] = None
+
     # Old push_agent and pop_agent methods removed.
+
+    def update_current_task_info(self, agent_name: str, agent_input: str) -> None:
+        """Update info about the task being prepared for execution."""
+        self._current_task_agent_name = agent_name
+        self._current_task_input = agent_input
+        part1 = f"Task: {agent_name[:35]}"  # Truncate agent name
+        part2 = f", In: {agent_input[:20]}..."
+        log_msg = part1 + part2
+        logger.debug(log_msg[:88])  # Ensure log message itself is not too long
 
     def log_conversation(
         self, role: str, message: str, agent_name: Optional[str] = None
@@ -230,9 +243,17 @@ class HealthAssistantSession:
                 and previous_agent_for_flow_stack
             ):
                 # Input for interrupted agent isn't directly here.
+                interrupted_input = self._current_task_input
+                if interrupted_input is None:
+                    part1 = f"NullInput: {previous_agent_for_flow_stack[:30]}"  # Trunc.
+                    part2 = ". Placeholder."
+                    log_msg = part1 + part2
+                    logger.warning(log_msg[:88])
+                    interrupted_input = "<interrupted_task_input_unavailable>"
+
                 self.flow_manager.push_flow(
                     agent_name=previous_agent_for_flow_stack,
-                    agent_input="<interrupted_flow_placeholder_input>",  # TODO: Refine
+                    agent_input=interrupted_input,
                     session_context_snapshot=self.get_context_snapshot(),
                     agent_specific_state=previous_agent_specific_state,
                 )

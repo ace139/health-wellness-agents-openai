@@ -179,6 +179,9 @@ class HealthAssistant:
                 "is_resumed_flow": is_resumed_flow,
             }
 
+            # Update session with the task that is about to be run
+            self.session.update_current_task_info(agent_to_run, input_for_agent)
+
             # 4. Run the selected agent
             response, should_continue = await self.run_agent(
                 agent_name=agent_to_run,

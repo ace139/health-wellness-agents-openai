@@ -2,7 +2,7 @@
 
 # Standard library imports
 import logging
-from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple
+from typing import TYPE_CHECKING, Tuple
 
 # Third-party imports
 from agents import Agent, Runner
@@ -62,7 +62,6 @@ async def handle_health_monitor_response(
     user_input: str,
     session: "HealthAssistantSession",
     agent: Agent,
-    context: Optional[Dict[str, Any]] = None,
 ) -> Tuple[str, bool]:
     """Handle the user input and generate a response using the Health Monitor agent.
 
@@ -82,9 +81,9 @@ async def handle_health_monitor_response(
     try:
         # Get response from the agent
         run_result = await Runner.run(
-            starting_agent=agent, 
-            input=user_input, 
-            context=session # Pass the HealthAssistantSession instance
+            starting_agent=agent,
+            input=user_input,
+            context=session,  # Pass the HealthAssistantSession instance
         )
 
         if not isinstance(run_result.final_output, str):
@@ -102,9 +101,7 @@ async def handle_health_monitor_response(
             if len(prefix) + len(final_output_str) > max_content_len_for_log:
                 # Calculate space for the variable part of final_output_str
                 len_available_for_var_part = (
-                    max_content_len_for_log
-                    - len(prefix)
-                    - len(ellipsis)
+                    max_content_len_for_log - len(prefix) - len(ellipsis)
                 )
                 # Ensure non-negative length for slicing
                 len_available_for_var_part = max(0, len_available_for_var_part)
@@ -121,7 +118,7 @@ async def handle_health_monitor_response(
 
         # Log the agent's response
         log_response_content = response_content
-        if len(log_response_content) > 70: # Truncate if too long for logging
+        if len(log_response_content) > 70:  # Truncate if too long for logging
             log_response_content = log_response_content[:67] + "..."
         session.log_conversation(role="assistant", message=log_response_content)
 
@@ -134,14 +131,10 @@ async def handle_health_monitor_response(
         return response_content.strip(), should_continue
 
     except Exception as e:
-        error_msg = (
-            "Sorry, an error occurred while "
-            "processing your health data: "
-            f"{e!s}"
-        )
+        error_msg = f"Sorry, an error occurred while processing your health data: {e!s}"
         # Truncate long exception messages for logging to avoid line length issues
         log_message = f"Error: {e!s}"
-        if len(log_message) > 70: # 70 to leave room for 'Error: ' and quotes
+        if len(log_message) > 70:  # 70 to leave room for 'Error: ' and quotes
             log_message = log_message[:67] + "..."
         session.log_conversation(role="system", message=log_message)
         return error_msg, True

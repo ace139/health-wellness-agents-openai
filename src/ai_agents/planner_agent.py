@@ -1,7 +1,7 @@
 """Planner agent for creating personalized meal plans."""
 
 # Standard library imports
-from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple
+from typing import TYPE_CHECKING, Tuple
 
 # Third-party imports
 from agents import Agent, Runner
@@ -74,7 +74,6 @@ async def handle_planner_response(
     user_input: str,
     session: "HealthAssistantSession",
     agent: Agent,  # Changed from planner_agent to generic agent
-    context: Optional[Dict[str, Any]] = None,
 ) -> Tuple[str, bool]:
     """Handle the user input and generate a response using the Planner agent.
 
@@ -82,7 +81,6 @@ async def handle_planner_response(
         user_input: The user's input text
         session: Current health assistant session
         agent: Configured Planner agent instance
-        context: Additional context for the agent
 
     Returns:
         Tuple of (response_text, should_continue)
@@ -93,16 +91,11 @@ async def handle_planner_response(
     session.log_conversation(role="user", message=user_input)
 
     try:
-        # Prepare the context for the agent
-        agent_context = session.get_context()
-        if context:
-            agent_context.update(context)
-
         # Get response from the agent using Runner
         run_result = await Runner.run(
             starting_agent=agent,
             input=user_input,
-            context=session # HealthAssistantSession is the SDK context
+            context=session,  # HealthAssistantSession is the SDK context
             # Any additional app-level 'context' (like the original 'agent_context')
             # would need to be part of the 'input' or handled by agent's instructions
             # if it's meant to influence the agent's direct execution via Runner.
@@ -112,10 +105,7 @@ async def handle_planner_response(
         if not isinstance(run_result.final_output, str):
             err_val = run_result.final_output
             err_type = type(err_val)
-            error_detail = (
-                f"Planner output not str. Got: {err_type}, "
-                f"Val: {err_val!r}"
-            )
+            error_detail = f"Planner output not str. Got: {err_type}, Val: {err_val!r}"
             print(f"P_ERR: {error_detail}")
             session.log_conversation(role="system", message=f"Error: {error_detail}")
             agent_response_content = "Sorry, I had trouble with the meal plan."

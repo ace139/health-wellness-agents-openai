@@ -44,7 +44,7 @@ def create_greeter_agent() -> Agent:
 
 
 async def handle_greeter_response(
-    user_input: str, session: "HealthAssistantSession", agent: Agent, **kwargs
+    user_input: str, session: "HealthAssistantSession", agent: Agent
 ) -> Tuple[str, bool]:
     """Handle the user input and generate a response using the Greeter agent.
 
@@ -52,7 +52,6 @@ async def handle_greeter_response(
         user_input: The input string from the user.
         session: The current HealthAssistantSession instance.
         agent: The agent instance (e.g., Greeter agent).
-        **kwargs: Additional keyword arguments (e.g., context).
 
     Returns:
         Tuple[str, bool]: Agent's response string and if conversation should continue.
@@ -64,19 +63,20 @@ async def handle_greeter_response(
 
         # Get the agent's response using Runner
         run_result = await Runner.run(
-            starting_agent=agent,
-            input=user_input,
-            context=session
+            starting_agent=agent, input=user_input, context=session
         )
 
         agent_response_content: str
         if not isinstance(run_result.final_output, str):
             err_val = run_result.final_output
             err_type = type(err_val)
-            error_detail = f"Greeter output not str. Got: {err_type}, Val: {err_val!r}"
+            error_detail = f"Greeter output not str. Type: {err_type}, Val: {err_val!r}"
             print(f"G_ERR: {error_detail}")
-            if session.user_id: # Log specific error
-                session.log_conversation(role="system", message=f"Error: {error_detail}")
+            if session.user_id:  # Log specific error
+                log_message = f"SysErr: {error_detail}"
+                if len(log_message) > 80: # Max length for the message itself
+                    log_message = log_message[:77] + "..."
+                session.log_conversation(role="system", message=log_message)
             agent_response_content = "Sorry, I had trouble formulating a response."
         else:
             agent_response_content = run_result.final_output.strip()
