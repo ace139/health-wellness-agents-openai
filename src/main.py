@@ -224,15 +224,27 @@ class HealthAssistant:
                 "is_resumed_flow": is_resumed_flow,
             }
 
-            # Update session with the task that is about to be run
-            self.session.update_current_task_info(agent_to_run, input_for_agent)
+            if agent_to_run is None:
+                reason = router_decision.get("reason", "No specific reason provided.")
+                # If target_agent was None, it means router needs clarification.
+                # The router's 'reason' field should explain why.
+                response = (
+                    f"I'm not sure how to proceed. The routing reason was: "
+                    f"'{reason}'. Could you please clarify or provide more details?"
+                )
+            else:
+                # Update session with the task that is about to be run
+                self.session.update_current_task_info(agent_to_run, input_for_agent)
 
-            # 4. Run the selected agent
-            response, should_continue = await self.run_agent(
-                agent_name=agent_to_run,
-                user_input=input_for_agent,
-                context=agent_run_context,
-            )
+                # 4. Run the selected agent
+                response, should_continue = await self.run_agent(
+                    agent_name=agent_to_run,
+                    user_input=input_for_agent,
+                    context=agent_run_context,
+                )
+                # The 'should_continue' from run_agent is not directly used here
+                # as process_input's main job is to return the response string.
+                # The CLI loop handles continuation based on user input like 'exit'.
 
             # 5. Update current agent if the agent indicates continuation
             # The session's current_agent_name is updated by prepare_for_routing

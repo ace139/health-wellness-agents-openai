@@ -4,8 +4,6 @@
 from typing import Dict, Optional
 
 # Third-party imports
-from agents import function_tool
-
 # Local application imports
 from db import crud
 from db.database import get_db_context  # Import get_db_context
@@ -25,7 +23,6 @@ MAX_SESSION_ID_LENGTH = 100
 MAX_AGENT_NAME_LENGTH = 50
 
 
-@function_tool
 def log_conversation(
     user_id: int,
     session_id: str,

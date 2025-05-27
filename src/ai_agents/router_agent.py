@@ -63,8 +63,37 @@ class RouterAgent:
         "select the most relevant agent from the list above.\n"
         "If the user's input is ambiguous or doesn't clearly map to a specialized "
         "agent, route to 'GeneralQuery'.\n\n"
-        'Output *only* the name of the chosen agent (e.g., "Planner", '
-        '"GeneralQuery").'
+        "Output *only* a single JSON object. Do NOT include any other text before or "
+        "after the JSON. The JSON object should have the following structure:\n"
+        "{\n"
+        "  \"intent\": \"route_to_agent\",\n"
+        "  \"target_agent\": \"NameOfAgent\",\n"
+        "  \"confidence\": 0.9,\n"
+        "  \"reason\": \"Brief reason for choosing this agent.\",\n"
+        "  \"is_interruption\": false,\n"
+        "  \"should_resume_after\": false\n"
+        "}\n\n"
+        "Valid `target_agent` names are: Greeter, Planner, HealthMonitor, "
+        "GeneralQuery, Affirmation, WellBeing, Done.\n\n"
+        "Example for routing to HealthMonitor:\n"
+        "{\n"
+        "  \"intent\": \"route_to_agent\",\n"
+        "  \"target_agent\": \"HealthMonitor\",\n"
+        "  \"confidence\": 0.95,\n"
+        "  \"reason\": \"User wants to log health data (CGM readings).\",\n"
+        "  \"is_interruption\": false,\n"
+        "  \"should_resume_after\": false\n"
+        "}\n\n"
+        "If the user's request is unclear for routing, you might use:\n"
+        "{\n"
+        "  \"intent\": \"clarification_needed\",\n"
+        "  \"target_agent\": null,\n"
+        "  \"confidence\": 0.5,\n"
+        "  \"reason\": \"User input is ambiguous, need more details "
+        "              \"before routing.\",\n"
+        "  \"is_interruption\": false,\n"
+        "  \"should_resume_after\": false\n"
+        "}\n"
     )
 
     def _create_router_agent(self) -> Agent:
@@ -127,7 +156,7 @@ class RouterAgent:
                 "intent": "error_parsing_router_response",
                 "is_interruption": False,
                 "should_resume_after": False,
-                "target_agent": "GreeterAgent",  # Default to a safe agent
+                "target_agent": "Greeter",  # Default to a safe agent
                 "confidence": 0.1,
                 "reason": f"Critical error parsing router JSON response: {e!s}",
             }

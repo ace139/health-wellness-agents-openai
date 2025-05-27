@@ -5,10 +5,9 @@ import logging
 from typing import TYPE_CHECKING
 
 # Third-party imports
-from agents import Agent, Runner, agent_output  # type: ignore
+from agents import Agent, Runner, RunResult  # type: ignore
 
 # Local application imports
-from tools.conversation import log_conversation
 from tools.user import fetch_user
 
 if TYPE_CHECKING:
@@ -85,14 +84,14 @@ def create_greeter_agent() -> Agent:
             "re-greeting, you can offer help directly.\n\n"
             "STRICTLY ADHERE to this ID collection task. Do not deviate."
         ),
-        tools=[fetch_user, log_conversation],
+        tools=[fetch_user],
         handoffs=["WellBeing"],
     )
 
 
 async def handle_greeter_response(
     user_input: str, session: "HealthAssistantSession", agent: Agent
-) -> agent_output:
+) -> RunResult:
     """Handle user input for the Greeter agent, focusing on User ID collection.
 
     Attempts to parse User ID from input if not already in session.
@@ -115,27 +114,39 @@ async def handle_greeter_response(
 
         id_newly_captured = _parse_user_id_from_input(user_input, session)
 
-        # If ID was newly captured, ID-specific logging occurs in the helper.
-        # is handled in _parse_user_id_from_input. More logs can go here.
         if id_newly_captured:
-            # Successful ID capture is logged in _parse_user_id_from_input.
-            # Additional system log here if desired.
-            pass
-
-        run_result = await Runner.run(
-            starting_agent=agent, input=user_input, context=session
-        )
-
-        if run_result.final_output:
-            final_output_str = str(run_result.final_output).strip()
-        else:
-            final_output_str = ""
-
-        if not final_output_str:
-            logger.warning("GreeterAgent LLM output empty. Constructing fallback.")
+            # ID was just captured, directly generate the confirmation response
             final_output_str = _get_fallback_response(session, id_newly_captured)
+            # Create a simple RunResult/agent_output as we bypassed the LLM Runner
+            run_result = RunResult(
+                final_output=final_output_str,
+                _last_agent=agent,
+                input=user_input,
+                new_items=[],
+                raw_responses=[],
+                input_guardrail_results=[],
+                output_guardrail_results=[],
+                context_wrapper=None  # Placeholder, may need adjustment
+            )
+        else:
+            # ID not newly captured (either known or input wasn't an ID attempt)
+            # Proceed with LLM interaction
+            llm_run_result = await Runner.run(
+                starting_agent=agent, input=user_input, context=session
+            )
 
-        run_result.final_output = final_output_str
+            if llm_run_result.final_output:
+                final_output_str = str(llm_run_result.final_output).strip()
+            else:
+                final_output_str = ""
+
+            if not final_output_str:
+                logger.warning("GreeterAgent LLM output empty. Constructing fallback.")
+                final_output_str = _get_fallback_response(session, id_newly_captured)
+            
+            # Ensure the final_output in the original RunResult is updated
+            llm_run_result.final_output = final_output_str
+            run_result = llm_run_result
 
         # Log assistant's response if User ID is known (newly captured or pre-existing).
         if session.user_id:
@@ -154,10 +165,15 @@ async def handle_greeter_response(
             session.log_conversation(role="system", message=system_error_log)
             session.log_conversation(role="assistant", message=error_msg)
 
-        return agent_output(
+        return RunResult(
             final_output=error_msg,
-            tool_calls=[],
-            tool_outputs=[],
-            error=str(e),
-            history=[],
+            _last_agent=agent,  # Provide the agent instance
+            input=user_input, # Provide the original user input
+            new_items=[],       # No new items for an error response like this
+            raw_responses=[],   # No raw LLM responses
+            input_guardrail_results=[],
+            output_guardrail_results=[],
+            context_wrapper=None, # Placeholder
+            # error=str(e) # RunResult does not have an 'error' field directly
+            # Errors are handled by exceptions or in final_output/new_items
         )
